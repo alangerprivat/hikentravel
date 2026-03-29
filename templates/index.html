@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hike and Travel – Explore the World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #122a3a 40%, #1a3a3a 70%, #0f2318 100%);
+      color: #e8efe8;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle mountain silhouette background */
+    body::before {
+      content: '';
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 40vh;
+      background: 
+        linear-gradient(165deg, transparent 30%, rgba(26,58,58,0.3) 30.5%, rgba(26,58,58,0.3) 45%, transparent 45.5%),
+        linear-gradient(195deg, transparent 25%, rgba(15,35,24,0.4) 25.5%, rgba(15,35,24,0.4) 55%, transparent 55.5%),
+        linear-gradient(175deg, transparent 35%, rgba(18,42,58,0.3) 35.5%, rgba(18,42,58,0.3) 60%, transparent 60.5%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .logo-area {
+      margin-bottom: 1.5rem;
+    }
+
+    .logo-area img {
+      max-width: 200px;
+      height: auto;
+      filter: drop-shadow(0 4px 20px rgba(0,0,0,0.4));
+    }
+
+    .logo-placeholder {
+      width: 160px; height: 160px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #1a5c4c, #2d8a6e);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 4rem;
+      margin: 0 auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: 2px;
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+    }
+
+    h1 .hike { color: #e8efe8; }
+    h1 .and { color: #c8956c; font-weight: 600; }
+    h1 .travel { color: #3db88c; }
+
+    .tagline {
+      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #c8956c;
+      margin-bottom: 2.5rem;
+    }
+
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, #3db88c, #c8956c);
+      border-radius: 2px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .description {
+      max-width: 540px;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: #b0c4b8;
+      margin-bottom: 3rem;
+    }
+
+    .badge-coming {
+      display: inline-block;
+      padding: 0.6rem 2rem;
+      border: 2px solid #3db88c;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #3db88c;
+      background: rgba(61,184,140,0.08);
+    }
+
+    .dots {
+      margin-top: 3rem;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #3db88c;
+      opacity: 0.4;
+    }
+    .dots span:nth-child(2) { opacity: 0.7; }
+    .dots span:nth-child(3) { opacity: 1; }
+
+    @media (max-width: 480px) {
+      .container { padding: 1.5rem; }
+      .logo-placeholder { width: 120px; height: 120px; font-size: 3rem; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-area">
+      <div class="logo-placeholder">⛰️</div>
+    </div>
+    <h1>
+      <span class="hike">HIKE</span>
+      <span class="and"> AND </span>
+      <span class="travel">TRAVEL</span>
+    </h1>
+    <p class="tagline">Explore the World</p>
+    <div class="divider"></div>
+    <p class="description">
+      Dein persönlicher Begleiter für Wanderungen und Reisen. 
+      Plane Routen, sammle Erinnerungen und entdecke neue Abenteuer.
+    </p>
+    <div class="badge-coming">Coming Soon</div>
+    <div class="dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</body>
+</html>
