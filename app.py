@@ -1,8 +1,6 @@
 import os
 import json
 from datetime import datetime
-from functools import wraps
-from urllib.parse import urlparse
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -16,7 +14,9 @@ app = Flask(__name__)
 database_url = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost/hikentravel')
 # Handle postgres:// vs postgresql://
 if database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
+elif database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
