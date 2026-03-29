@@ -1,158 +1,176 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hike and Travel – Explore the World</title>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    body {
-      font-family: 'Montserrat', sans-serif;
-      background: linear-gradient(135deg, #0a1628 0%, #122a3a 40%, #1a3a3a 70%, #0f2318 100%);
-      color: #e8efe8;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
+{% extends \"base.html\" %}
 
-    /* Subtle mountain silhouette background */
-    body::before {
-      content: '';
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      height: 40vh;
-      background: 
-        linear-gradient(165deg, transparent 30%, rgba(26,58,58,0.3) 30.5%, rgba(26,58,58,0.3) 45%, transparent 45.5%),
-        linear-gradient(195deg, transparent 25%, rgba(15,35,24,0.4) 25.5%, rgba(15,35,24,0.4) 55%, transparent 55.5%),
-        linear-gradient(175deg, transparent 35%, rgba(18,42,58,0.3) 35.5%, rgba(18,42,58,0.3) 60%, transparent 60.5%);
-      pointer-events: none;
-      z-index: 0;
-    }
+{% block title %}Wanderungen - Hike and Travel{% endblock %}
 
-    .container {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 2rem;
-      text-align: center;
-    }
-
-    .logo-area {
-      margin-bottom: 1.5rem;
-    }
-
-    .logo-area img {
-      max-width: 200px;
-      height: auto;
-      filter: drop-shadow(0 4px 20px rgba(0,0,0,0.4));
-    }
-
-    .logo-placeholder {
-      width: 160px; height: 160px;
-      border-radius: 28px;
-      background: linear-gradient(135deg, #1a5c4c, #2d8a6e);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 4rem;
-      margin: 0 auto;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-
-    h1 {
-      font-size: clamp(2.2rem, 6vw, 4rem);
-      font-weight: 800;
-      letter-spacing: 2px;
-      margin-bottom: 0.3rem;
-      text-transform: uppercase;
-    }
-
-    h1 .hike { color: #e8efe8; }
-    h1 .and { color: #c8956c; font-weight: 600; }
-    h1 .travel { color: #3db88c; }
-
-    .tagline {
-      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
-      font-weight: 600;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: #c8956c;
-      margin-bottom: 2.5rem;
-    }
-
-    .divider {
-      width: 60px;
-      height: 3px;
-      background: linear-gradient(90deg, #3db88c, #c8956c);
-      border-radius: 2px;
-      margin: 0 auto 2.5rem;
-    }
-
-    .description {
-      max-width: 540px;
-      font-size: 1.05rem;
-      line-height: 1.7;
-      color: #b0c4b8;
-      margin-bottom: 3rem;
-    }
-
-    .badge-coming {
-      display: inline-block;
-      padding: 0.6rem 2rem;
-      border: 2px solid #3db88c;
-      border-radius: 50px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #3db88c;
-      background: rgba(61,184,140,0.08);
-    }
-
-    .dots {
-      margin-top: 3rem;
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-    }
-    .dots span {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: #3db88c;
-      opacity: 0.4;
-    }
-    .dots span:nth-child(2) { opacity: 0.7; }
-    .dots span:nth-child(3) { opacity: 1; }
-
-    @media (max-width: 480px) {
-      .container { padding: 1.5rem; }
-      .logo-placeholder { width: 120px; height: 120px; font-size: 3rem; border-radius: 22px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="logo-area">
-      <div class="logo-placeholder">⛰️</div>
+{% block content %}
+<div class=\"row mb-4\">
+    <div class=\"col-lg-8\">
+        <h1>🏔️ Wanderungen</h1>
+        <p class=\"text-muted\">Entdecke und verwalte deine Lieblingstouren</p>
     </div>
-    <h1>
-      <span class="hike">HIKE</span>
-      <span class="and"> AND </span>
-      <span class="travel">TRAVEL</span>
-    </h1>
-    <p class="tagline">Explore the World</p>
-    <div class="divider"></div>
-    <p class="description">
-      Dein persönlicher Begleiter für Wanderungen und Reisen. 
-      Plane Routen, sammle Erinnerungen und entdecke neue Abenteuer.
-    </p>
-    <div class="badge-coming">Coming Soon</div>
-    <div class="dots">
-      <span></span><span></span><span></span>
+    {% if current_user.is_authenticated %}
+    <div class=\"col-lg-4 text-lg-end\">
+        <a href=\"/hike/new\" class=\"btn btn-primary btn-lg\">
+            <i class=\"bi bi-plus-circle\"></i> Neue Wanderung
+        </a>
     </div>
-  </div>
-</body>
-</html>
+    {% endif %}
+</div>
+
+<div class=\"row mb-4\">
+    <div class=\"col-lg-12\">
+        <div class=\"card\">
+            <div class=\"card-body\">
+                <div class=\"row g-3\">
+                    <div class=\"col-lg-4\">
+                        <input type=\"text\" class=\"form-control\" id=\"searchInput\" placeholder=\"Nach Wanderung suchen...\" value=\"{{ search }}\">
+                    </div>
+                    <div class=\"col-lg-2\">
+                        <select class=\"form-select\" id=\"categoryFilter\">
+                            <option value=\"\">Alle Kategorien</option>
+                            {% for category in categories %}
+                            <option value=\"{{ category.id }}\" {% if category_id == category.id %}selected{% endif %}>
+                                {{ category.icon }} {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class=\"col-lg-2\">
+                        <select class=\"form-select\" id=\"difficultyFilter\">
+                            <option value=\"\">Alle Schwierigkeiten</option>
+                            <option value=\"1\" {% if difficulty == 1 %}selected{% endif %}>🏔️ Einfach</option>
+                            <option value=\"2\" {% if difficulty == 2 %}selected{% endif %}>🏔️🏔️ Leicht</option>
+                            <option value=\"3\" {% if difficulty == 3 %}selected{% endif %}>🏔️🏔️🏔️ Mittel</option>
+                            <option value=\"4\" {% if difficulty == 4 %}selected{% endif %}>🏔️🏔️🏔️🏔️ Schwer</option>
+                            <option value=\"5\" {% if difficulty == 5 %}selected{% endif %}>🏔️🏔️🏔️🏔️🏔️ Sehr Schwer</option>
+                        </select>
+                    </div>
+                    <div class=\"col-lg-2\">
+                        <select class=\"form-select\" id=\"sortFilter\">
+                            <option value=\"created_at\" {% if sort_by == 'created_at' %}selected{% endif %}>Neueste zuerst</option>
+                            <option value=\"name\" {% if sort_by == 'name' %}selected{% endif %}>Nach Name (A-Z)</option>
+                            <option value=\"distance\" {% if sort_by == 'distance' %}selected{% endif %}>Längste zuerst</option>
+                            <option value=\"rating\" {% if sort_by == 'rating' %}selected{% endif %}>Beste bewertet</option>
+                        </select>
+                    </div>
+                    <div class=\"col-lg-2\">
+                        <button class=\"btn btn-secondary w-100\" id=\"resetBtn\">
+                            <i class=\"bi bi-arrow-counterclockwise\"></i> Zurücksetzen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id=\"hikesContainer\">
+    {% if hikes %}
+    <div class=\"row g-4\">
+        {% for hike in hikes %}
+        <div class=\"col-lg-6 col-xl-4\">
+            <div class=\"card h-100\">
+                <div class=\"card-header d-flex justify-content-between align-items-center\">
+                    <h5 class=\"mb-0\">
+                        <a href=\"/hike/{{ hike.id }}\" class=\"text-white text-decoration-none\">
+                            {{ hike.name }}
+                        </a>
+                    </h5>
+                    {% if hike.category %}
+                    <span class=\"badge badge-secondary\">{{ hike.category.icon }} {{ hike.category.name }}</span>
+                    {% endif %}
+                </div>
+                <div class=\"card-body\">
+                    <p class=\"text-muted mb-2\">
+                        <i class=\"bi bi-geo-alt\"></i> {{ hike.region }}, {{ hike.country }}
+                    </p>
+                    <div class=\"row text-sm mb-3\">
+                        <div class=\"col-6\">
+                            <small class=\"text-muted d-block\">Entfernung</small>
+                            <strong>{{ \"%.1f\"|format(hike.distance_km) }} km</strong>
+                        </div>
+                        <div class=\"col-6\">
+                            <small class=\"text-muted d-block\">Dauer</small>
+                            <strong>{{ hike.get_duration_display() }}</strong>
+                        </div>
+                    </div>
+                    <div class=\"row text-sm mb-3\">
+                        <div class=\"col-6\">
+                            <small class=\"text-muted d-block\">Höhenmeter</small>
+                            <strong>{{ hike.elevation_gain|int if hike.elevation_gain else 0 }} m</strong>
+                        </div>
+                        <div class=\"col-6\">
+                            <small class=\"text-muted d-block\">Schwierigkeit</small>
+                            <strong>{{ hike.get_difficulty_stars() }}</strong>
+                        </div>
+                    </div>
+                    {% if hike.rating %}
+                    <div class=\"mb-2\">
+                        <small class=\"text-muted\">Bewertung: </small>
+                        <span class=\"text-warning\">★ {{ hike.rating }}/5</span>
+                    </div>
+                    {% endif %}
+                    {% if hike.tags %}
+                    <div class=\"mb-2\">
+                        {% for tag in hike.get_tags_list() %}
+                        <span class=\"badge bg-info\">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class=\"card-footer bg-transparent\">
+                    <a href=\"/hike/{{ hike.id }}\" class=\"btn btn-sm btn-primary w-100\">
+                        <i class=\"bi bi-eye\"></i> Details anzeigen
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class=\"alert alert-info text-center py-5\">
+        <i class=\"bi bi-search\" style=\"font-size: 2rem;\"></i>
+        <p class=\"mt-3 mb-0\">Keine Wanderungen gefunden. Starten Sie mit Ihrer ersten Tour!</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+let searchTimeout;
+const params = new URLSearchParams(window.location.search);
+
+function updateSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 1000);
+}
+
+function performSearch() {
+    const search = document.getElementById('searchInput').value;
+    const category = document.getElementById('categoryFilter').value;
+    const difficulty = document.getElementById('difficultyFilter').value;
+    const sort = document.getElementById('sortFilter').value;
+
+    const url = new URL(window.location.pathname, window.location.origin);
+    if (search) url.searchParams.set('search', search);
+    if (category) url.searchParams.set('category', category);
+    if (difficulty) url.searchParams.set('difficulty', difficulty);
+    if (sort) url.searchParams.set('sort', sort);
+
+    window.history.pushState({}, '', url.toString());
+    location.reload();
+}
+
+document.getElementById('searchInput').addEventListener('input', updateSearch);
+document.getElementById('categoryFilter').addEventListener('change', performSearch);
+document.getElementById('difficultyFilter').addEventListener('change', performSearch);
+document.getElementById('sortFilter').addEventListener('change', performSearch);
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('categoryFilter').value = '';
+    document.getElementById('difficultyFilter').value = '';
+    document.getElementById('sortFilter').value = 'created_at';
+    window.location.href = '/';
+});
+</script>
+{% endblock %}
