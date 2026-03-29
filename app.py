@@ -90,11 +90,11 @@ class Hike(db.Model):
         hours = self.duration_minutes // 60
         mins = self.duration_minutes % 60
         if hours > 0 and mins > 0:
-            return f\"{hours}h {mins}m\"
+            return f"{hours}h {mins}m"
         elif hours > 0:
-            return f\"{hours}h\"
+            return f"{hours}h"
         else:
-            return f\"{mins}m\"
+            return f"{mins}m"
 
 
 @login_manager.user_loader
@@ -103,7 +103,7 @@ def load_user(user_id):
 
 
 def init_admin_user():
-    \"\"\"Initialize admin user if it doesn't exist\"\"\"
+    """Initialize admin user if it doesn't exist"""
     if User.query.filter_by(username=ADMIN_USER).first() is None:
         admin = User(username=ADMIN_USER)
         admin.set_password(ADMIN_PASS)
@@ -112,7 +112,7 @@ def init_admin_user():
 
 
 def init_sample_categories():
-    \"\"\"Initialize sample categories\"\"\"
+    """Initialize sample categories"""
     if Category.query.count() == 0:
         categories = [
             Category(name='Berg', icon='⛰️', color='#3DB88C'),
@@ -323,44 +323,44 @@ def download_gpx(hike_id):
 
 
 def generate_gpx(hike):
-    \"\"\"Generate GPX XML from hike data\"\"\"
-    gpx = f\"\"\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>
-<gpx version=\\\"1.1\\\" creator=\\\"HikeNTravel\\\"
-  xmlns:xsi=\\\"http://www.w3.org/2001/XMLSchema-instance\\\"
-  xmlns=\\\"http://www.topografix.com/GPX/1/1\\\"
-  xsi:schemaLocation=\\\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\\\">
+    """Generate GPX XML from hike data"""
+    gpx = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HikeNTravel"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
     <name>{hike.name}</name>
     <desc>{hike.description or ''}</desc>
     <time>{hike.created_at.isoformat()}Z</time>
   </metadata>
-  <wpt lat=\\\"{hike.start_lat}\\\" lon=\\\"{hike.start_lng}\\\">
+  <wpt lat="{hike.start_lat}" lon="{hike.start_lng}">
     <name>{hike.name} - Start</name>
-  </wpt>\"\"\"
+  </wpt>"""
 
     if hike.end_lat and hike.end_lng:
-        gpx += f\"\"\"
-  <wpt lat=\\\"{hike.end_lat}\\\" lon=\\\"{hike.end_lng}\\\">
+        gpx += f"""
+  <wpt lat="{hike.end_lat}" lon="{hike.end_lng}">
     <name>{hike.name} - End</name>
-  </wpt>\"\"\"
+  </wpt>"""
 
-    gpx += \"\"\"
+    gpx += """
   <trk>
     <name>{}</name>
     <trkseg>
-      <trkpt lat=\\\"{}\\\" lon=\\\"{}\\\">
+      <trkpt lat="{}" lon="{}">
         <name>Start</name>
       </trkpt>
     </trkseg>
   </trk>
-</gpx>\"\"\".format(hike.name, hike.start_lat, hike.start_lng)
+</gpx>""".format(hike.name, hike.start_lat, hike.start_lng)
 
     return gpx
 
 
 @app.route('/api/hike/map-data')
 def get_map_data():
-    \"\"\"Get all hikes for map display\"\"\"
+    """Get all hikes for map display"""
     hikes = Hike.query.all()
     return jsonify({
         'hikes': [{
