@@ -1,206 +1,206 @@
-{% extends \"base.html\" %}
+{% extends "base.html" %}
 
 {% block title %}{% if hike %}Wanderung bearbeiten{% else %}Neue Wanderung{% endif %} - Hike and Travel{% endblock %}
 
 {% block content %}
-<div class=\"row mb-4\">
-    <div class=\"col-lg-12\">
+<div class="row mb-4">
+    <div class="col-lg-12">
         <h1>{% if hike %}🏔️ Wanderung bearbeiten{% else %}🏔️ Neue Wanderung{% endif %}</h1>
     </div>
 </div>
 
 {% if error %}
-<div class=\"alert alert-danger alert-dismissible fade show\" role=\"alert\">
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
     <strong>Fehler:</strong> {{ error }}
-    <button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"alert\"></button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 {% endif %}
 
-<div class=\"row\">
-    <div class=\"col-lg-8\">
-        <form method=\"POST\" enctype=\"multipart/form-data\">
-            <div class=\"card mb-4\">
-                <div class=\"card-header\">
-                    <h5 class=\"mb-0\">Grundinformationen</h5>
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Grundinformationen</h5>
                 </div>
-                <div class=\"card-body\">
-                    <div class=\"mb-3\">
-                        <label for=\"name\" class=\"form-label\">Name der Wanderung *</label>
-                        <input type=\"text\" class=\"form-control\" id=\"name\" name=\"name\" required
-                               value=\"{{ hike.name if hike else '' }}\">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name der Wanderung *</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               value="{{ hike.name if hike else '' }}">
                     </div>
 
-                    <div class=\"mb-3\">
-                        <label for=\"description\" class=\"form-label\">Beschreibung</label>
-                        <textarea class=\"form-control\" id=\"description\" name=\"description\" rows=\"4\">{{ hike.description if hike else '' }}</textarea>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Beschreibung</label>
+                        <textarea class="form-control" id="description" name="description" rows="4">{{ hike.description if hike else '' }}</textarea>
                     </div>
 
-                    <div class=\"row\">
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"region\" class=\"form-label\">Region *</label>
-                            <input type=\"text\" class=\"form-control\" id=\"region\" name=\"region\" required
-                                   value=\"{{ hike.region if hike else '' }}\" placeholder=\"z.B. Alpen, Schwarzwald\">
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label for="region" class="form-label">Region *</label>
+                            <input type="text" class="form-control" id="region" name="region" required
+                                   value="{{ hike.region if hike else '' }}" placeholder="z.B. Alpen, Schwarzwald">
                         </div>
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"country\" class=\"form-label\">Land *</label>
-                            <input type=\"text\" class=\"form-control\" id=\"country\" name=\"country\" required
-                                   value=\"{{ hike.country if hike else '' }}\" placeholder=\"z.B. Deutschland, Österreich\">
+                        <div class="col-lg-6 mb-3">
+                            <label for="country" class="form-label">Land *</label>
+                            <input type="text" class="form-control" id="country" name="country" required
+                                   value="{{ hike.country if hike else '' }}" placeholder="z.B. Deutschland, Österreich">
                         </div>
                     </div>
 
-                    <div class=\"row\">
-                        <div class=\"col-lg-4 mb-3\">
-                            <label for=\"category_id\" class=\"form-label\">Kategorie</label>
-                            <select class=\"form-select\" id=\"category_id\" name=\"category_id\">
-                                <option value=\"\">-- Keine Kategorie --</option>
+                    <div class="row">
+                        <div class="col-lg-4 mb-3">
+                            <label for="category_id" class="form-label">Kategorie</label>
+                            <select class="form-select" id="category_id" name="category_id">
+                                <option value="">-- Keine Kategorie --</option>
                                 {% for cat in categories %}
-                                <option value=\"{{ cat.id }}\" {% if hike and hike.category_id == cat.id %}selected{% endif %}>
+                                <option value="{{ cat.id }}" {% if hike and hike.category_id == cat.id %}selected{% endif %}>
                                     {{ cat.icon }} {{ cat.name }}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class=\"col-lg-4 mb-3\">
-                            <label for=\"trail_type\" class=\"form-label\">Streckentyp</label>
-                            <select class=\"form-select\" id=\"trail_type\" name=\"trail_type\">
-                                <option value=\"loop\" {% if hike and hike.trail_type == 'loop' %}selected{% endif %}>Rundweg</option>
-                                <option value=\"out-and-back\" {% if hike and hike.trail_type == 'out-and-back' %}selected{% endif %}>Hin- und Rückweg</option>
-                                <option value=\"point-to-point\" {% if hike and hike.trail_type == 'point-to-point' %}selected{% endif %}>Punkt zu Punkt</option>
+                        <div class="col-lg-4 mb-3">
+                            <label for="trail_type" class="form-label">Streckentyp</label>
+                            <select class="form-select" id="trail_type" name="trail_type">
+                                <option value="loop" {% if hike and hike.trail_type == 'loop' %}selected{% endif %}>Rundweg</option>
+                                <option value="out-and-back" {% if hike and hike.trail_type == 'out-and-back' %}selected{% endif %}>Hin- und Rückweg</option>
+                                <option value="point-to-point" {% if hike and hike.trail_type == 'point-to-point' %}selected{% endif %}>Punkt zu Punkt</option>
                             </select>
                         </div>
-                        <div class=\"col-lg-4 mb-3\">
-                            <label for=\"tags\" class=\"form-label\">Tags (kommagetrennt)</label>
-                            <input type=\"text\" class=\"form-control\" id=\"tags\" name=\"tags\"
-                                   value=\"{{ hike.tags if hike else '' }}\" placeholder=\"z.B. Aussicht, Familie, Sommer\">
+                        <div class="col-lg-4 mb-3">
+                            <label for="tags" class="form-label">Tags (kommagetrennt)</label>
+                            <input type="text" class="form-control" id="tags" name="tags"
+                                   value="{{ hike.tags if hike else '' }}" placeholder="z.B. Aussicht, Familie, Sommer">
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class=\"card mb-4\">
-                <div class=\"card-header\">
-                    <h5 class=\"mb-0\">Streckenparameter</h5>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Streckenparameter</h5>
                 </div>
-                <div class=\"card-body\">
-                    <div class=\"row\">
-                        <div class=\"col-lg-3 mb-3\">
-                            <label for=\"distance_km\" class=\"form-label\">Entfernung (km) *</label>
-                            <input type=\"number\" step=\"0.1\" class=\"form-control\" id=\"distance_km\" name=\"distance_km\" required
-                                   value=\"{{ hike.distance_km if hike else '' }}\">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-3 mb-3">
+                            <label for="distance_km" class="form-label">Entfernung (km) *</label>
+                            <input type="number" step="0.1" class="form-control" id="distance_km" name="distance_km" required
+                                   value="{{ hike.distance_km if hike else '' }}">
                         </div>
-                        <div class=\"col-lg-3 mb-3\">
-                            <label for=\"elevation_gain\" class=\"form-label\">Höhenmeter Aufstieg (m)</label>
-                            <input type=\"number\" step=\"1\" class=\"form-control\" id=\"elevation_gain\" name=\"elevation_gain\"
-                                   value=\"{{ hike.elevation_gain if hike else '' }}\">
+                        <div class="col-lg-3 mb-3">
+                            <label for="elevation_gain" class="form-label">Höhenmeter Aufstieg (m)</label>
+                            <input type="number" step="1" class="form-control" id="elevation_gain" name="elevation_gain"
+                                   value="{{ hike.elevation_gain if hike else '' }}">
                         </div>
-                        <div class=\"col-lg-3 mb-3\">
-                            <label for=\"elevation_loss\" class=\"form-label\">Höhenmeter Abstieg (m)</label>
-                            <input type=\"number\" step=\"1\" class=\"form-control\" id=\"elevation_loss\" name=\"elevation_loss\"
-                                   value=\"{{ hike.elevation_loss if hike else '' }}\">
+                        <div class="col-lg-3 mb-3">
+                            <label for="elevation_loss" class="form-label">Höhenmeter Abstieg (m)</label>
+                            <input type="number" step="1" class="form-control" id="elevation_loss" name="elevation_loss"
+                                   value="{{ hike.elevation_loss if hike else '' }}">
                         </div>
-                        <div class=\"col-lg-3 mb-3\">
-                            <label for=\"duration_minutes\" class=\"form-label\">Dauer (Minuten) *</label>
-                            <input type=\"number\" step=\"1\" class=\"form-control\" id=\"duration_minutes\" name=\"duration_minutes\" required
-                                   value=\"{{ hike.duration_minutes if hike else 120 }}\">
+                        <div class="col-lg-3 mb-3">
+                            <label for="duration_minutes" class="form-label">Dauer (Minuten) *</label>
+                            <input type="number" step="1" class="form-control" id="duration_minutes" name="duration_minutes" required
+                                   value="{{ hike.duration_minutes if hike else 120 }}">
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class=\"card mb-4\">
-                <div class=\"card-header\">
-                    <h5 class=\"mb-0\">Schwierigkeit & Bewertung</h5>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Schwierigkeit & Bewertung</h5>
                 </div>
-                <div class=\"card-body\">
-                    <div class=\"row\">
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"difficulty\" class=\"form-label\">Schwierigkeitsgrad</label>
-                            <div class=\"btn-group w-100\" role=\"group\">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label for="difficulty" class="form-label">Schwierigkeitsgrad</label>
+                            <div class="btn-group w-100" role="group">
                                 {% for i in range(1, 6) %}
-                                <input type=\"radio\" class=\"btn-check\" name=\"difficulty\" id=\"difficulty{{ i }}\" value=\"{{ i }}\"
+                                <input type="radio" class="btn-check" name="difficulty" id="difficulty{{ i }}" value="{{ i }}"
                                        {% if hike and hike.difficulty == i %}checked{% elif not hike and i == 3 %}checked{% endif %}>
-                                <label class=\"btn btn-outline-light\" for=\"difficulty{{ i }}\">
+                                <label class="btn btn-outline-light" for="difficulty{{ i }}">
                                     {{ '🏔️' * i }}
                                 </label>
                                 {% endfor %}
                             </div>
                         </div>
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"rating\" class=\"form-label\">Deine Bewertung</label>
-                            <select class=\"form-select\" id=\"rating\" name=\"rating\">
-                                <option value=\"\">-- Nicht bewertet --</option>
-                                <option value=\"1\" {% if hike and hike.rating == 1 %}selected{% endif %}>⭐ 1 - Nicht empfohlen</option>
-                                <option value=\"2\" {% if hike and hike.rating == 2 %}selected{% endif %}>⭐⭐ 2 - Okay</option>
-                                <option value=\"3\" {% if hike and hike.rating == 3 %}selected{% endif %}>⭐⭐⭐ 3 - Gut</option>
-                                <option value=\"4\" {% if hike and hike.rating == 4 %}selected{% endif %}>⭐⭐⭐⭐ 4 - Sehr gut</option>
-                                <option value=\"5\" {% if hike and hike.rating == 5 %}selected{% endif %}>⭐⭐⭐⭐⭐ 5 - Hervorragend</option>
+                        <div class="col-lg-6 mb-3">
+                            <label for="rating" class="form-label">Deine Bewertung</label>
+                            <select class="form-select" id="rating" name="rating">
+                                <option value="">-- Nicht bewertet --</option>
+                                <option value="1" {% if hike and hike.rating == 1 %}selected{% endif %}>⭐ 1 - Nicht empfohlen</option>
+                                <option value="2" {% if hike and hike.rating == 2 %}selected{% endif %}>⭐⭐ 2 - Okay</option>
+                                <option value="3" {% if hike and hike.rating == 3 %}selected{% endif %}>⭐⭐⭐ 3 - Gut</option>
+                                <option value="4" {% if hike and hike.rating == 4 %}selected{% endif %}>⭐⭐⭐⭐ 4 - Sehr gut</option>
+                                <option value="5" {% if hike and hike.rating == 5 %}selected{% endif %}>⭐⭐⭐⭐⭐ 5 - Hervorragend</option>
                             </select>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class=\"card mb-4\">
-                <div class=\"card-header\">
-                    <h5 class=\"mb-0\">Koordinaten & Karte</h5>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Koordinaten & Karte</h5>
                 </div>
-                <div class=\"card-body\">
-                    <div class=\"row mb-3\">
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"start_lat\" class=\"form-label\">Startpunkt - Breitengrad *</label>
-                            <input type=\"number\" step=\"0.000001\" class=\"form-control\" id=\"start_lat\" name=\"start_lat\" required
-                                   value=\"{{ hike.start_lat if hike else '' }}\">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-lg-6 mb-3">
+                            <label for="start_lat" class="form-label">Startpunkt - Breitengrad *</label>
+                            <input type="number" step="0.000001" class="form-control" id="start_lat" name="start_lat" required
+                                   value="{{ hike.start_lat if hike else '' }}">
                         </div>
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"start_lng\" class=\"form-label\">Startpunkt - Längengrad *</label>
-                            <input type=\"number\" step=\"0.000001\" class=\"form-control\" id=\"start_lng\" name=\"start_lng\" required
-                                   value=\"{{ hike.start_lng if hike else '' }}\">
-                        </div>
-                    </div>
-
-                    <div class=\"row mb-3\">
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"end_lat\" class=\"form-label\">Endpunkt - Breitengrad</label>
-                            <input type=\"number\" step=\"0.000001\" class=\"form-control\" id=\"end_lat\" name=\"end_lat\"
-                                   value=\"{{ hike.end_lat if hike else '' }}\">
-                        </div>
-                        <div class=\"col-lg-6 mb-3\">
-                            <label for=\"end_lng\" class=\"form-label\">Endpunkt - Längengrad</label>
-                            <input type=\"number\" step=\"0.000001\" class=\"form-control\" id=\"end_lng\" name=\"end_lng\"
-                                   value=\"{{ hike.end_lng if hike else '' }}\">
+                        <div class="col-lg-6 mb-3">
+                            <label for="start_lng" class="form-label">Startpunkt - Längengrad *</label>
+                            <input type="number" step="0.000001" class="form-control" id="start_lng" name="start_lng" required
+                                   value="{{ hike.start_lng if hike else '' }}">
                         </div>
                     </div>
 
-                    <div class=\"alert alert-info\">
+                    <div class="row mb-3">
+                        <div class="col-lg-6 mb-3">
+                            <label for="end_lat" class="form-label">Endpunkt - Breitengrad</label>
+                            <input type="number" step="0.000001" class="form-control" id="end_lat" name="end_lat"
+                                   value="{{ hike.end_lat if hike else '' }}">
+                        </div>
+                        <div class="col-lg-6 mb-3">
+                            <label for="end_lng" class="form-label">Endpunkt - Längengrad</label>
+                            <input type="number" step="0.000001" class="form-control" id="end_lng" name="end_lng"
+                                   value="{{ hike.end_lng if hike else '' }}">
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
                         <strong>💡 Hinweis:</strong> Gib die Koordinaten deines Startpunkts ein. Wenn es ein Rundweg ist, kann das Ende gleich dem Start sein.
                     </div>
                 </div>
             </div>
 
-            <div class=\"card mb-4\">
-                <div class=\"card-header\">
-                    <h5 class=\"mb-0\">GPX-Datei & Notizen</h5>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">GPX-Datei & Notizen</h5>
                 </div>
-                <div class=\"card-body\">
-                    <div class=\"mb-3\">
-                        <label for=\"gpx_file\" class=\"form-label\">GPX-Datei hochladen (optional)</label>
-                        <input type=\"file\" class=\"form-control\" id=\"gpx_file\" name=\"gpx_file\" accept=\".gpx\">
-                        <small class=\"text-muted d-block mt-2\">Lade eine .gpx-Datei hoch, um die Route zu speichern.</small>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="gpx_file" class="form-label">GPX-Datei hochladen (optional)</label>
+                        <input type="file" class="form-control" id="gpx_file" name="gpx_file" accept=".gpx">
+                        <small class="text-muted d-block mt-2">Lade eine .gpx-Datei hoch, um die Route zu speichern.</small>
                     </div>
 
-                    <div class=\"mb-3\">
-                        <label for=\"notes\" class=\"form-label\">Notizen</label>
-                        <textarea class=\"form-control\" id=\"notes\" name=\"notes\" rows=\"4\" placeholder=\"Weitere Anmerkungen zu dieser Wanderung...\">{{ hike.notes if hike else '' }}</textarea>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notizen</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Weitere Anmerkungen zu dieser Wanderung...">{{ hike.notes if hike else '' }}</textarea>
                     </div>
                 </div>
             </div>
 
-            <div class=\"d-grid gap-2 d-md-flex justify-content-md-end\">
-                <a href=\"/\" class=\"btn btn-secondary me-md-2\">
-                    <i class=\"bi bi-arrow-left\"></i> Abbrechen
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="/" class="btn btn-secondary me-md-2">
+                    <i class="bi bi-arrow-left"></i> Abbrechen
                 </a>
-                <button type=\"submit\" class=\"btn btn-primary btn-lg\">
-                    <i class=\"bi bi-save\"></i> {% if hike %}Aktualisieren{% else %}Erstellen{% endif %}
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> {% if hike %}Aktualisieren{% else %}Erstellen{% endif %}
                 </button>
             </div>
         </form>
