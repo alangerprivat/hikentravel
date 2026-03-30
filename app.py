@@ -386,88 +386,142 @@ def get_map_data():
 
 @app.route('/api/fetch-mapy-route', methods=['POST'])
 def fetch_mapy_route():
-    """Fetch route data from Mapy.com URL or coordinates"""
+    """Fetch route data from Mapy.com URL"""
+    import re
     data = request.get_json()
     mapy_url = data.get('url', '')
     
     try:
         # Step 1: Resolve short links
         resolved_url = mapy_url
-        if '/s/' in mapy_url or 'mapy.cz' in mapy_url:
+        if '/s/' in mapy_url:
             try:
-                req = urllib.request.Request(mapy_url, method='HEAD')
-                req.add_header('User-Agent', 'HikeNTravel/1.0')
-                response = urllib.request.urlopen(req)
+                req = urllib.request.Request(mapy_url)
+                req.add_header('User-Agent', 'Mozilla/5.0 HikeNTravel/1.0')
+                response = urllib.request.urlopen(req, timeout=10)
                 resolved_url = response.url
             except Exception:
                 resolved_url = mapy_url
         
-        # Step 2: Parse coordinates from URL
+        # Step 2: Parse URL parameters
         parsed = urllib.parse.urlparse(resolved_url)
         params = urllib.parse.parse_qs(parsed.query)
         
-        start_coords = None
-        end_coords = None
+        start_lat = None
+        start_lng = None
+        end_lat = None
+        end_lng = None
         
-        # Try different URL formats
-        if 'start' in params:
-            start_coords = params['start'][0]
-        if 'end' in params:
-            end_coords = params['end'][0]
+        # Method 1: Look for OSM node IDs in 'ri' params and resolve via Nominatim
+        ri_values = params.get('ri', [])
+        rs_values = params.get('rs', [])
+        osm_nodes = []
+        for i, ri in enumerate(ri_values):
+            if ri and ri.strip():
+                source = rs_values[i] if i < len(rs_values) else 'osm'
+                if source == 'osm':
+                    osm_nodes.append(ri.strip())
         
-        # If coordinates provided directly in request
-        if not start_coords and data.get('start'):
-            start_coords = data['start']
-        if not end_coords and data.get('end'):
-            end_coords = data['end']
+        if len(osm_nodes) >= 2:
+            # Resolve OSM node IDs to coordinates via Nominatim
+            osm_ids = ','.join(['N' + n for n in osm_nodes])
+            nom_url = f"https://nominatim.openstreetmap.org/lookup?osm_ids={osm_ids}&format=json"
+            nom_req = urllib.request.Request(nom_url)
+            nom_req.add_header('User-Agent', 'HikeNTravel/1.0')
+            nom_resp = urllib.request.urlopen(nom_req, timeout=10)
+            nom_data = json.loads(nom_resp.read().decode('utf-8'))
+            
+            if len(nom_data) >= 2:
+                start_lat = float(nom_data[0]['lat'])
+                start_lng = float(nom_data[0]['lon'])
+                end_lat = float(nom_data[-1]['lat'])
+                end_lng = float(nom_data[-1]['lon'])
         
-        if not start_coords or not end_coords:
-            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte gib Start- und Endkoordinaten manuell ein.'}), 400
+        # Method 2: Fallback to x/y params (map center)
+        if not start_lat and 'x' in params and 'y' in params:
+            center_lng = float(params['x'][0])
+            center_lat = float(params['y'][0])
+            # Use map center as start point
+            start_lat = center_lat
+            start_lng = center_lng
+        
+        # Method 3: Try 'start'/'end' params (for future compatibility)
+        if not start_lat and 'start' in params:
+            parts = params['start'][0].split(',')
+            if len(parts) == 2:
+                start_lat = float(parts[0])
+                start_lng = float(parts[1])
+        if not end_lat and 'end' in params:
+            parts = params['end'][0].split(',')
+            if len(parts) == 2:
+                end_lat = float(parts[0])
+                end_lng = float(parts[1])
+        
+        if not start_lat or not start_lng:
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL (nicht Short-Links).'}), 400
+        
+        # If we only have start but no end, return just the start coordinates
+        if not end_lat or not end_lng:
+            return jsonify({
+                'start_lat': round(start_lat, 6),
+                'start_lng': round(start_lng, 6),
+                'resolved_url': resolved_url,
+                'error': 'Nur Startpunkt gefunden. Bitte gib den Endpunkt manuell ein.'
+            }), 400
         
         # Step 3: Call Mapy.com Routing API
         api_key = app.config.get('MAPY_API_KEY', '')
-        route_url = f"https://api.mapy.cz/v1/routing/route?apikey={api_key}&start={start_coords}&end={end_coords}&routeType=foot_hiking&lang=de&format=geojson"
+        waypoints = f"{start_lat},{start_lng}|{end_lat},{end_lng}"
+        route_api = f"https://api.mapy.cz/v1/routing/route?apikey={api_key}&lang=de&start={start_lat},{start_lng}&end={end_lat},{end_lng}&routeType=foot_hiking"
         
-        req = urllib.request.Request(route_url)
+        req = urllib.request.Request(route_api)
         req.add_header('User-Agent', 'HikeNTravel/1.0')
-        response = urllib.request.urlopen(req)
-        route_data = json.loads(response.read().decode('utf-8'))
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        route_data = json.loads(resp.read().decode('utf-8'))
         
-        # Step 4: Extract useful data
+        # Extract route info
         geometry = route_data.get('geometry', {})
         properties = route_data.get('properties', {})
         
-        # Distance in km
-        distance_km = properties.get('length', 0) / 1000
-        # Duration in minutes
-        duration_min = properties.get('duration', 0) / 60
+        distance_m = 0
+        duration_s = 0
+        elevation_gain = 0
+        elevation_loss = 0
         
-        # Get elevation data if available
-        elevation_gain = properties.get('ascent', 0)
-        elevation_loss = properties.get('descent', 0)
+        # Try different response structures
+        if 'length' in properties:
+            distance_m = properties['length']
+        elif 'distance' in properties:
+            distance_m = properties['distance']
+            
+        if 'duration' in properties:
+            duration_s = properties['duration']
+        elif 'time' in properties:
+            duration_s = properties['time']
         
-        # Parse start/end coords
-        coords = geometry.get('coordinates', [])
-        start_point = coords[0] if coords else [0, 0]
-        end_point = coords[-1] if coords else [0, 0]
+        if 'ascent' in properties:
+            elevation_gain = int(properties['ascent'])
+        if 'descent' in properties:
+            elevation_loss = int(properties['descent'])
+        
+        distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
+        duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
         
         return jsonify({
-            'success': True,
+            'distance_km': distance_km,
+            'duration_minutes': duration_minutes,
+            'elevation_gain': elevation_gain,
+            'elevation_loss': elevation_loss,
+            'start_lat': round(start_lat, 6),
+            'start_lng': round(start_lng, 6),
+            'end_lat': round(end_lat, 6),
+            'end_lng': round(end_lng, 6),
             'route_geometry': json.dumps(geometry),
-            'distance_km': round(distance_km, 1),
-            'duration_minutes': round(duration_min),
-            'elevation_gain': round(elevation_gain),
-            'elevation_loss': round(elevation_loss),
-            'start_lng': start_point[0],
-            'start_lat': start_point[1],
-            'end_lng': end_point[0],
-            'end_lat': end_point[1],
             'resolved_url': resolved_url
         })
         
     except Exception as e:
-        return jsonify({'error': f'Fehler beim Laden der Route: {str(e)}'}), 500
-
-
+        return jsonify({'error': f'Fehler: {str(e)}'}), 500
 if __name__ == '__main__':
     app.run(debug=True)
