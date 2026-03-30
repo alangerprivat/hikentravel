@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{% if trip %}Reise bearbeiten{% else %}Neue Reise{% endif %} - Hike and Travel{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <h1>{% if trip %}&#x2708;&#xFE0F; Reise bearbeiten{% else %}&#x2708;&#xFE0F; Neue Reise{% endif %}</h1>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>Fehler:</strong> {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Reise-Informationen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name der Reise *</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               value="{{ trip.name if trip else '' }}"
+                               placeholder="z.B. Alpenueberquerung 2026">
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Beschreibung</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"
+                                  placeholder="Beschreibe deine geplante Reise...">{{ trip.description if trip else '' }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label for="start_date" class="form-label">Startdatum</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date"
+                                   value="{{ trip.start_date if trip else '' }}">
+                        </div>
+                        <div class="col-lg-6 mb-3">
+                            <label for="end_date" class="form-label">Enddatum</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date"
+                                   value="{{ trip.end_date if trip else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notizen</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                                  placeholder="Weitere Anmerkungen...">{{ trip.notes if trip else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="/trips" class="btn btn-secondary me-md-2">
+                    <i class="bi bi-arrow-left"></i> Abbrechen
+                </a>
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> {% if trip %}Aktualisieren{% else %}Erstellen{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, var(--color-copper) 0%, #A07050 100%);">
+                <h5 class="mb-0">&#x1F4A1; Tipps</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Erstelle zuerst deine Reise, dann kannst du auf der Detailseite Stops hinzufuegen.</p>
+                <p class="small text-muted mb-0">Stops koennen Wanderungen, Staedte, Sehenswuerdigkeiten oder Unterkuenfte sein. Die Route zwischen den Stops wird automatisch berechnet.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
