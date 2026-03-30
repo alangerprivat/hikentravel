@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Reisen - Hike and Travel{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <h1>&#x2708;&#xFE0F; Reisen</h1>
+        <p class="text-muted">Plane und verwalte deine Reisen mit mehreren Stops</p>
+    </div>
+    {% if current_user.is_authenticated %}
+    <div class="col-lg-4 text-lg-end">
+        <a href="/trip/new" class="btn btn-primary btn-lg">
+            <i class="bi bi-plus-circle"></i> Neue Reise
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% if trips %}
+<div class="row g-4">
+    {% for trip in trips %}
+    <div class="col-lg-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <a href="/trip/{{ trip.id }}" class="text-white text-decoration-none">
+                        {{ trip.name }}
+                    </a>
+                </h5>
+                <span class="badge" style="background-color: var(--color-copper);">
+                    {{ trip.get_stop_count() }} Stops
+                </span>
+            </div>
+            <div class="card-body">
+                {% if trip.description %}
+                <p class="text-muted mb-3">{{ trip.description[:120] }}{% if trip.description|length > 120 %}...{% endif %}</p>
+                {% endif %}
+
+                <div class="row text-sm mb-3">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Gesamtdistanz</small>
+                        <strong>{{ trip.get_total_distance() }} km</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Gesamtdauer</small>
+                        <strong>{{ trip.get_total_duration_display() }}</strong>
+                    </div>
+                </div>
+
+                {% if trip.start_date %}
+                <div class="row text-sm mb-3">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Von</small>
+                        <strong>{{ trip.start_date }}</strong>
+                    </div>
+                    {% if trip.end_date %}
+                    <div class="col-6">
+                        <small class="text-muted d-block">Bis</small>
+                        <strong>{{ trip.end_date }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if trip.stops %}
+                <div class="mt-2">
+                    <small class="text-muted d-block mb-1">Stops:</small>
+                    {% for stop in trip.stops[:5] %}
+                    <span class="badge bg-secondary me-1 mb-1">{{ stop.get_category_icon() }} {{ stop.name }}</span>
+                    {% endfor %}
+                    {% if trip.stops|length > 5 %}
+                    <span class="badge bg-secondary">+{{ trip.stops|length - 5 }} weitere</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="/trip/{{ trip.id }}" class="btn btn-sm btn-primary w-100">
+                    <i class="bi bi-eye"></i> Details anzeigen
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info text-center py-5">
+    <i class="bi bi-signpost-2" style="font-size: 2rem;"></i>
+    <p class="mt-3 mb-0">Noch keine Reisen geplant. Starte jetzt mit deiner ersten Reise!</p>
+</div>
+{% endif %}
+{% endblock %}
