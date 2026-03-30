@@ -7,6 +7,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+import urllib.request
+import urllib.parse
 
 app = Flask(__name__)
 
@@ -71,6 +73,8 @@ class Hike(db.Model):
     end_lat = db.Column(db.Float, nullable=True)
     end_lng = db.Column(db.Float, nullable=True)
     gpx_data = db.Column(db.Text, nullable=True)
+    route_geometry = db.Column(db.Text, nullable=True)  # GeoJSON
+    mapy_url = db.Column(db.String(500), nullable=True)
     tags = db.Column(db.String(500), nullable=True)
     rating = db.Column(db.Integer, nullable=True)  # 1-5
     notes = db.Column(db.Text, nullable=True)
@@ -210,7 +214,8 @@ def hike_detail(hike_id):
     map_coords = {
         'start': {'lat': hike.start_lat, 'lng': hike.start_lng},
         'end': {'lat': hike.end_lat, 'lng': hike.end_lng} if hike.end_lat and hike.end_lng else None,
-        'gpx': hike.gpx_data
+        'gpx': hike.gpx_data,
+        'route_geometry': json.loads(hike.route_geometry) if hike.route_geometry else None
     }
     return render_template('hike_detail.html', hike=hike, map_coords=json.dumps(map_coords))
 
@@ -237,6 +242,8 @@ def create_hike():
                 end_lng=float(request.form.get('end_lng') or 0) or None,
                 tags=request.form.get('tags'),
                 notes=request.form.get('notes'),
+                route_geometry=request.form.get('route_geometry'),
+                mapy_url=request.form.get('mapy_url'),
                 category_id=request.form.get('category_id', type=int),
             )
 
@@ -280,6 +287,8 @@ def edit_hike(hike_id):
             hike.notes = request.form.get('notes')
             hike.category_id = request.form.get('category_id', type=int)
             hike.rating = request.form.get('rating', type=int)
+            hike.route_geometry = request.form.get('route_geometry') or hike.route_geometry
+            hike.mapy_url = request.form.get('mapy_url') or hike.mapy_url
 
             if 'gpx_file' in request.files:
                 gpx_file = request.files['gpx_file']
@@ -372,6 +381,92 @@ def get_map_data():
             'category': h.category.name if h.category else None,
         } for h in hikes]
     })
+
+
+
+@app.route('/api/fetch-mapy-route', methods=['POST'])
+def fetch_mapy_route():
+    """Fetch route data from Mapy.com URL or coordinates"""
+    data = request.get_json()
+    mapy_url = data.get('url', '')
+    
+    try:
+        # Step 1: Resolve short links
+        resolved_url = mapy_url
+        if '/s/' in mapy_url or 'mapy.cz' in mapy_url:
+            try:
+                req = urllib.request.Request(mapy_url, method='HEAD')
+                req.add_header('User-Agent', 'HikeNTravel/1.0')
+                response = urllib.request.urlopen(req)
+                resolved_url = response.url
+            except Exception:
+                resolved_url = mapy_url
+        
+        # Step 2: Parse coordinates from URL
+        parsed = urllib.parse.urlparse(resolved_url)
+        params = urllib.parse.parse_qs(parsed.query)
+        
+        start_coords = None
+        end_coords = None
+        
+        # Try different URL formats
+        if 'start' in params:
+            start_coords = params['start'][0]
+        if 'end' in params:
+            end_coords = params['end'][0]
+        
+        # If coordinates provided directly in request
+        if not start_coords and data.get('start'):
+            start_coords = data['start']
+        if not end_coords and data.get('end'):
+            end_coords = data['end']
+        
+        if not start_coords or not end_coords:
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte gib Start- und Endkoordinaten manuell ein.'}), 400
+        
+        # Step 3: Call Mapy.com Routing API
+        api_key = app.config.get('MAPY_API_KEY', '')
+        route_url = f"https://api.mapy.cz/v1/routing/route?apikey={api_key}&start={start_coords}&end={end_coords}&routeType=foot_hiking&lang=de&format=geojson"
+        
+        req = urllib.request.Request(route_url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0')
+        response = urllib.request.urlopen(req)
+        route_data = json.loads(response.read().decode('utf-8'))
+        
+        # Step 4: Extract useful data
+        geometry = route_data.get('geometry', {})
+        properties = route_data.get('properties', {})
+        
+        # Distance in km
+        distance_km = properties.get('length', 0) / 1000
+        # Duration in minutes
+        duration_min = properties.get('duration', 0) / 60
+        
+        # Get elevation data if available
+        elevation_gain = properties.get('ascent', 0)
+        elevation_loss = properties.get('descent', 0)
+        
+        # Parse start/end coords
+        coords = geometry.get('coordinates', [])
+        start_point = coords[0] if coords else [0, 0]
+        end_point = coords[-1] if coords else [0, 0]
+        
+        return jsonify({
+            'success': True,
+            'route_geometry': json.dumps(geometry),
+            'distance_km': round(distance_km, 1),
+            'duration_minutes': round(duration_min),
+            'elevation_gain': round(elevation_gain),
+            'elevation_loss': round(elevation_loss),
+            'start_lng': start_point[0],
+            'start_lat': start_point[1],
+            'end_lng': end_point[0],
+            'end_lat': end_point[1],
+            'resolved_url': resolved_url
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Fehler beim Laden der Route: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
