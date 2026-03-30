@@ -143,65 +143,28 @@
 </div>
 
 <script>
-function initDetailMap(retries) {
+document.addEventListener('DOMContentLoaded', function() {
     const mapCoords = {{ map_coords|safe }};
+    if (!window.L) return;
 
-    if (!window.SMap) {
-        retries = (retries || 0);
-        if (retries < 20) {
-            setTimeout(function() { initDetailMap(retries + 1); }, 500);
-        } else {
-            document.getElementById('map').innerHTML = '<p style="padding: 20px; color:#A0E0D0;">Karte konnte nicht geladen werden. Bitte Seite neu laden.</p>';
-        }
-        return;
-    }
-
-    const mapDiv = document.getElementById('map');
-    const map = new SMap(mapDiv);
-    map.setCenterZoom(SMap.Coords.fromWGS84(mapCoords.start.lng, mapCoords.start.lat), 13);
-    map.addDefaultLayer(SMap.DEF_TURIST).enable();
-    map.addDefaultControls();
+    const map = L.map('map').setView([mapCoords.start.lat, mapCoords.start.lng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
     // Draw route if geometry exists
     if (mapCoords.route_geometry && mapCoords.route_geometry.coordinates) {
         const coords = mapCoords.route_geometry.coordinates;
-
-        const geoLayer = new SMap.Layer.Geometry();
-        map.addLayer(geoLayer).enable();
-
-        const points = coords.map(function(c) { return SMap.Coords.fromWGS84(c[0], c[1]); });
-        var polyline = new SMap.Geometry(SMap.GEOMETRY_POLYLINE, null, points, {
-            color: '#3DB88C',
-            width: 5,
-            opacity: 0.9
-        });
-        geoLayer.addGeometry(polyline);
-
-        // Fit map to route
-        var cz = map.computeCenterZoom(points);
-        map.setCenterZoom(cz[0], cz[1]);
+        const latLngs = coords.map(function(c) { return [c[1], c[0]]; });
+        const polyline = L.polyline(latLngs, { color: '#3DB88C', weight: 5, opacity: 0.9 }).addTo(map);
+        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
     }
 
     // Add markers
-    var markerLayer = new SMap.Layer.Marker();
-    map.addLayer(markerLayer).enable();
-
-    var startMarker = new SMap.Marker(
-        SMap.Coords.fromWGS84(mapCoords.start.lng, mapCoords.start.lat),
-        'Start',
-        { title: 'Start' }
-    );
-    markerLayer.addMarker(startMarker);
-
+    L.marker([mapCoords.start.lat, mapCoords.start.lng]).addTo(map).bindPopup('Start');
     if (mapCoords.end) {
-        var endMarker = new SMap.Marker(
-            SMap.Coords.fromWGS84(mapCoords.end.lng, mapCoords.end.lat),
-            'Ziel',
-            { title: 'Ziel' }
-        );
-        markerLayer.addMarker(endMarker);
+        L.marker([mapCoords.end.lat, mapCoords.end.lng]).addTo(map).bindPopup('Ziel');
     }
-}
-document.addEventListener('DOMContentLoaded', function() { initDetailMap(0); });
+});
 </script>
 {% endblock %}
