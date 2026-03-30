@@ -17,166 +17,42 @@
             --color-dark-green: #2D5A40;
             --color-light: #F5F5F5;
         }
-
-        * {
-            color-scheme: dark;
-        }
-
-        body {
-            background-color: var(--color-dark);
-            color: #E0E0E0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .navbar {
-            background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-dark-green) 100%) !important;
-            border-bottom: 3px solid var(--color-copper);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .navbar-brand {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--color-copper) !important;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .nav-link {
-            color: #E0E0E0 !important;
-            margin-left: 1rem;
-            transition: color 0.3s ease;
-        }
-
-        .nav-link:hover {
-            color: var(--color-copper) !important;
-        }
-
-        .btn-primary {
-            background-color: var(--color-green);
-            border-color: var(--color-green);
-        }
-
-        .btn-primary:hover {
-            background-color: #2ca871;
-            border-color: #2ca871;
-        }
-
-        .btn-secondary {
-            background-color: var(--color-teal);
-            border-color: var(--color-teal);
-        }
-
-        .btn-secondary:hover {
-            background-color: #154538;
-            border-color: #154538;
-        }
-
-        .card {
-            background-color: #1A2332;
-            border-color: #2D3E4F;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 16px rgba(61, 184, 140, 0.2);
-        }
-
-        .card-header {
-            background-color: var(--color-teal);
-            color: white;
-            border-bottom-color: #2D3E4F;
-        }
-
-        .form-control,
-        .form-select {
-            background-color: #1A2332;
-            color: #E0E0E0;
-            border-color: #2D3E4F;
-        }
-
-        .form-control:focus,
-        .form-select:focus {
-            background-color: #1A2332;
-            color: #E0E0E0;
-            border-color: var(--color-green);
-            box-shadow: 0 0 0 0.2rem rgba(61, 184, 140, 0.25);
-        }
-
-        .badge {
-            background-color: var(--color-green);
-            color: white;
-        }
-
-        .badge-secondary {
-            background-color: var(--color-teal);
-        }
-
-        .container-fluid, .container {
-            max-width: 1400px;
-        }
-
-        footer {
-            background-color: var(--color-teal);
-            color: white;
-            border-top: 2px solid var(--color-copper);
-            margin-top: 3rem;
-            padding: 2rem 0;
-        }
-
-        a {
-            color: var(--color-green);
-            text-decoration: none;
-        }
-
-        a:hover {
-            color: var(--color-copper);
-            text-decoration: underline;
-        }
-
-        .alert-info {
-            background-color: #1A3A3C;
-            border-color: var(--color-green);
-            color: #A0E0D0;
-        }
-
-        #map {
-            height: 500px;
-            background-color: #1A2332;
-            border-radius: 8px;
-            border: 2px solid #2D3E4F;
-        }
-
-        .form-label {
-            color: var(--color-copper) !important;
-            font-weight: 600;
-        }
-
-        .form-text, .text-muted {
-            color: #A0B0C0 !important;
-        }
-
-        label {
-            color: #E0E0E0 !important;
-        }
-
-        h5, h4, h3 {
-            color: #E0E0E0;
-        }
-
-        .card-header h5 {
-            color: white;
-        }
+        * { color-scheme: dark; }
+        body { background-color: var(--color-dark); color: #E0E0E0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar { background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-dark-green) 100%) !important; border-bottom: 3px solid var(--color-copper); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .navbar-brand { font-size: 1.5rem; font-weight: 700; color: var(--color-copper) !important; text-transform: uppercase; letter-spacing: 1px; }
+        .nav-link { color: #E0E0E0 !important; margin-left: 1rem; transition: color 0.3s ease; }
+        .nav-link:hover { color: var(--color-copper) !important; }
+        .nav-link.active { color: var(--color-copper) !important; font-weight: 600; }
+        .btn-primary { background-color: var(--color-green); border-color: var(--color-green); }
+        .btn-primary:hover { background-color: #2ca871; border-color: #2ca871; }
+        .btn-secondary { background-color: var(--color-teal); border-color: var(--color-teal); }
+        .btn-secondary:hover { background-color: #154538; border-color: #154538; }
+        .card { background-color: #1A2332; border-color: #2D3E4F; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 4px 16px rgba(61, 184, 140, 0.2); }
+        .card-header { background-color: var(--color-teal); color: white; border-bottom-color: #2D3E4F; }
+        .form-control, .form-select { background-color: #1A2332; color: #E0E0E0; border-color: #2D3E4F; }
+        .form-control:focus, .form-select:focus { background-color: #1A2332; color: #E0E0E0; border-color: var(--color-green); box-shadow: 0 0 0 0.2rem rgba(61, 184, 140, 0.25); }
+        .badge { background-color: var(--color-green); color: white; }
+        .badge-secondary { background-color: var(--color-teal); }
+        .container-fluid, .container { max-width: 1400px; }
+        footer { background-color: var(--color-teal); color: white; border-top: 2px solid var(--color-copper); margin-top: 3rem; padding: 2rem 0; }
+        a { color: var(--color-green); text-decoration: none; }
+        a:hover { color: var(--color-copper); text-decoration: underline; }
+        .alert-info { background-color: #1A3A3C; border-color: var(--color-green); color: #A0E0D0; }
+        #map { height: 500px; background-color: #1A2332; border-radius: 8px; border: 2px solid #2D3E4F; }
+        .form-label { color: var(--color-copper) !important; font-weight: 600; }
+        .form-text, .text-muted { color: #A0B0C0 !important; }
+        label { color: #E0E0E0 !important; }
+        h5, h4, h3 { color: #E0E0E0; }
+        .card-header h5 { color: white; }
     </style>
-
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/">🏔️ Hike and Travel</a>
+            <a class="navbar-brand" href="/">&#x1F3D4;&#xFE0F; Hike and Travel</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -185,9 +61,15 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/">Wanderungen</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/trips">Reisen</a>
+                    </li>
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="/hike/new">+ Neue Wanderung</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/trip/new">+ Neue Reise</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/logout">Abmelden</a>
@@ -205,14 +87,14 @@
     <main class="py-4">
         <div class="container-fluid">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
 
             {% block content %}{% endblock %}
@@ -224,7 +106,7 @@
             <div class="row">
                 <div class="col-md-6">
                     <h6>Hike and Travel</h6>
-                    <p class="small">Deine Wanderungen erfassen und teilen</p>
+                    <p class="small">Deine Wanderungen und Reisen planen</p>
                 </div>
                 <div class="col-md-6 text-md-end">
                     <p class="small">&copy; 2024 Hike and Travel. Alle Rechte vorbehalten.</p>
