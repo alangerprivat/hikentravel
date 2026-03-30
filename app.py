@@ -466,12 +466,26 @@ def fetch_mapy_route():
         resolved_url = mapy_url
         if '/s/' in mapy_url:
             try:
-                req = urllib.request.Request(mapy_url)
-                req.add_header('User-Agent', 'Mozilla/5.0 HikeNTravel/1.0')
+                req = urllib.request.Request(mapy_url, method='HEAD')
+                req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                req.add_header('Accept', 'text/html')
                 response = urllib.request.urlopen(req, timeout=10)
                 resolved_url = response.url
             except Exception:
-                resolved_url = mapy_url
+                try:
+                    req = urllib.request.Request(mapy_url)
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                    req.add_header('Accept', 'text/html')
+                    response = urllib.request.urlopen(req, timeout=10)
+                    resolved_url = response.url
+                    if resolved_url == mapy_url or '/s/' in resolved_url:
+                        import re
+                        html = response.read().decode('utf-8', errors='ignore')
+                        meta_match = re.search(r'url=([^"\'>\s]+)', html, re.IGNORECASE)
+                        if meta_match:
+                            resolved_url = meta_match.group(1)
+                except Exception:
+                    resolved_url = mapy_url
 
         # Step 2: Parse URL parameters
         parsed = urllib.parse.urlparse(resolved_url)
@@ -504,9 +518,18 @@ def fetch_mapy_route():
             start_lng = center_lng
 
         if not start_lat or not start_lng:
-            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.'}), 400
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.',
+                            'resolved_url': resolved_url}), 400
 
         if not end_lat or not end_lng:
+            dim_value = params.get('dim', [None])[0]
+            if dim_value and start_lat:
+                return jsonify({
+                    'start_lat': round(start_lat, 6),
+                    'start_lng': round(start_lng, 6),
+                    'resolved_url': resolved_url,
+                    'error': 'Dieser Link zeigt einen Wanderpfad, keine geplante Route. Bitte oeffne den Pfad in Mapy.com, klicke auf Route planen, und teile dann den neuen Link.'
+                }), 400
             return jsonify({
                 'start_lat': round(start_lat, 6),
                 'start_lng': round(start_lng, 6),
