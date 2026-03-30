@@ -522,7 +522,7 @@ def fetch_mapy_route():
         if not start_lat and dim_value:
             return jsonify({
                 'resolved_url': resolved_url,
-                'error': 'Dieser Link zeigt einen Wanderpfad, keine geplante Route. Bitte oeffne den Pfad in Mapy.com, klicke auf Route planen, und teile dann den neuen Link.'
+                'error': 'Dieser Link zeigt einen Wanderpfad (kein Routenplan). So funktioniert es: 1) Oeffne den Pfad auf mapy.com 2) Klicke oben rechts auf 'Route' 3) Plane eine Route entlang des Pfads 4) Kopiere die neue URL und fuege sie hier ein.'
             }), 400
 
         if not start_lat or not start_lng:
