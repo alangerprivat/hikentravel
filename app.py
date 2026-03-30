@@ -542,9 +542,51 @@ def fetch_mapy_route():
         else:
             geometry = geo_feature
 
-        # Elevation not available from routing API
+        # Step 4: Get elevation data from Mapy Elevation API
         elevation_gain = 0
         elevation_loss = 0
+        try:
+            route_coords = []
+            if isinstance(geometry, dict) and geometry.get('type') == 'LineString':
+                route_coords = geometry.get('coordinates', [])
+
+            if route_coords:
+                max_points = 256
+                if len(route_coords) > max_points:
+                    step = len(route_coords) / max_points
+                    sampled = [route_coords[int(i * step)] for i in range(max_points)]
+                else:
+                    sampled = route_coords
+
+                positions = ';'.join(
+                    '{},{}'.format(round(c[0], 6), round(c[1], 6))
+                    for c in sampled
+                )
+
+                elev_url = (
+                    'https://api.mapy.cz/v1/elevation'
+                    '?apikey=' + api_key +
+                    '&positions=' + positions
+                )
+
+                elev_req = urllib.request.Request(elev_url)
+                elev_req.add_header('User-Agent', 'HikeNTravel/1.0')
+                elev_req.add_header('Accept', 'application/json')
+                elev_resp = urllib.request.urlopen(elev_req, timeout=15)
+                elev_data = json.loads(elev_resp.read().decode('utf-8'))
+
+                elevations = [item['elevation'] for item in elev_data.get('items', [])]
+                if len(elevations) > 1:
+                    for i in range(1, len(elevations)):
+                        diff = elevations[i] - elevations[i - 1]
+                        if diff > 0:
+                            elevation_gain += diff
+                        else:
+                            elevation_loss += abs(diff)
+                    elevation_gain = int(round(elevation_gain))
+                    elevation_loss = int(round(elevation_loss))
+        except Exception:
+            pass  # Elevation is optional, don't fail the whole request
 
         distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
         duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
