@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}{% if hike %}Wanderung bearbeiten{% else %}Neue Wanderung{% endif %} - Hike and Travel
+{% block title %}{% if hike %}Wanderung bearbeiten{% else %}Neue Wanderung{% endif %} - Hike and Travel{% endblock %}
+
 {% block extra_js %}
 <script>
 async function loadMapyRoute() {
@@ -82,22 +83,34 @@ function showStatus(msg, type) {
     div.textContent = msg;
 }
 
-function showRoutePreview(geometry) {
+function showRoutePreview(geometry, retries) {
     const div = document.getElementById('routePreview');
-    if (!geometry || !geometry.coordinates || !window.SMap) return;
-    
+    if (!geometry || !geometry.coordinates) return;
+
+    // Wait for SMap to load (async loader)
+    if (!window.SMap) {
+        retries = (retries || 0);
+        if (retries < 20) {
+            setTimeout(function() { showRoutePreview(geometry, retries + 1); }, 500);
+        } else {
+            div.innerHTML = '<p style="padding:20px; color:#A0E0D0;">Karte konnte nicht geladen werden. Bitte Seite neu laden.</p>';
+        }
+        return;
+    }
+
+    div.innerHTML = '';
     const coords = geometry.coordinates;
     const center = coords[Math.floor(coords.length / 2)];
-    
+
     const map = new SMap(div);
     map.setCenterZoom(SMap.Coords.fromWGS84(center[0], center[1]), 13);
     map.addDefaultLayer(SMap.DEF_TURIST).enable();
     map.addDefaultControls();
-    
+
     // Draw route polyline
     const layer = new SMap.Layer.Geometry();
     map.addLayer(layer).enable();
-    
+
     const points = coords.map(c => SMap.Coords.fromWGS84(c[0], c[1]));
     const polyline = new SMap.Geometry(SMap.GEOMETRY_POLYLINE, null, points, {
         color: '#3DB88C',
@@ -105,31 +118,30 @@ function showRoutePreview(geometry) {
         opacity: 0.9
     });
     layer.addGeometry(polyline);
-    
+
     // Add start/end markers
     const markerLayer = new SMap.Layer.Marker();
     map.addLayer(markerLayer).enable();
-    
+
     const startMarker = new SMap.Marker(
         SMap.Coords.fromWGS84(coords[0][0], coords[0][1]),
         'Start',
         { title: 'Start' }
     );
     markerLayer.addMarker(startMarker);
-    
+
     const endMarker = new SMap.Marker(
         SMap.Coords.fromWGS84(coords[coords.length-1][0], coords[coords.length-1][1]),
         'Ziel',
         { title: 'Ziel' }
     );
     markerLayer.addMarker(endMarker);
-    
+
     // Fit map to route
     const cz = map.computeCenterZoom(points);
     map.setCenterZoom(cz[0], cz[1]);
 }
 </script>
-{% endblock %}
 {% endblock %}
 
 {% block content %}
