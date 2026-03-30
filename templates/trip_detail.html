@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trip.name }} - Hike and Travel{% endblock %}
+
+{% block extra_css %}
+<style>
+    #tripMap { height: 550px; }
+    .stop-item { background-color: #1A2332; border: 1px solid #2D3E4F; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: grab; transition: all 0.2s; }
+    .stop-item:hover { border-color: var(--color-green); }
+    .stop-item.dragging { opacity: 0.5; }
+    .route-info { font-size: 0.8rem; color: #A0B0C0; padding: 4px 12px 4px 32px; }
+    .route-line { border-left: 2px dashed var(--color-copper); margin-left: 16px; padding: 2px 0 2px 16px; }
+    .stop-cat-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; }
+    .add-stop-card { border: 2px dashed #2D3E4F; border-radius: 8px; padding: 16px; margin-top: 12px; }
+    .add-stop-card:hover { border-color: var(--color-green); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <h1>{{ trip.name }}</h1>
+        {% if trip.description %}
+        <p class="text-muted">{{ trip.description }}</p>
+        {% endif %}
+        {% if trip.start_date %}
+        <p class="text-muted small">
+            <i class="bi bi-calendar"></i> {{ trip.start_date }}{% if trip.end_date %} bis {{ trip.end_date }}{% endif %}
+            &nbsp;|&nbsp;
+            <i class="bi bi-signpost-2"></i> {{ stops|length }} Stops
+            &nbsp;|&nbsp;
+            <i class="bi bi-arrow-left-right"></i> {{ trip.get_total_distance() }} km gesamt
+        </p>
+        {% endif %}
+    </div>
+    {% if current_user.is_authenticated %}
+    <div class="col-lg-4 text-lg-end">
+        <a href="/trip/{{ trip.id }}/edit" class="btn btn-primary me-2">
+            <i class="bi bi-pencil"></i> Bearbeiten
+        </a>
+        <form method="POST" action="/trip/{{ trip.id }}/delete" style="display: inline;"
+              onsubmit="return confirm('Reise wirklich loeschen?')">
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Loeschen
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row">
+    <!-- Map -->
+    <div class="col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">&#x1F5FA;&#xFE0F; Reisekarte</h5>
+                {% if current_user.is_authenticated and stops|length > 1 %}
+                <button class="btn btn-sm btn-secondary" onclick="recalculateRoutes()">
+                    <i class="bi bi-arrow-repeat"></i> Routen neu berechnen
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div id="tripMap"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stops List -->
+    <div class="col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">&#x1F4CD; Stops ({{ stops|length }})</h5>
+            </div>
+            <div class="card-body" style="max-height: 550px; overflow-y: auto;">
+                <div id="stopsList">
+                    {% for stop in stops %}
+                    <div class="stop-item" data-id="{{ stop.id }}" draggable="true">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="me-1">{{ stop.get_category_icon() }}</span>
+                                <strong>{{ stop.position + 1 }}. {{ stop.name }}</strong>
+                                <span class="stop-cat-badge badge bg-secondary ms-1">{{ stop.get_category_label() }}</span>
+                            </div>
+                            {% if current_user.is_authenticated %}
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-light btn-sm" onclick="editStop({{ stop.id }})" title="Bearbeiten">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteStop({{ stop.id }})" title="Loeschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if stop.description %}
+                        <small class="text-muted d-block mt-1">{{ stop.description }}</small>
+                        {% endif %}
+                        {% if stop.duration_minutes %}
+                        <small class="text-muted"><i class="bi bi-clock"></i> {{ stop.duration_minutes }} min Aufenthalt</small>
+                        {% endif %}
+                        {% if stop.hike_id and stop.hike %}
+                        <small class="d-block mt-1">
+                            <a href="/hike/{{ stop.hike_id }}"><i class="bi bi-signpost"></i> {{ stop.hike.name }}</a>
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% if stop.distance_to_next_km %}
+                    <div class="route-line">
+                        <div class="route-info">
+                            {{ stop.get_route_type_icon() }}
+                            {{ stop.distance_to_next_km }} km
+                            {% if stop.duration_to_next_min %}| {{ stop.duration_to_next_min }} min{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                {% if current_user.is_authenticated %}
+                <div class="add-stop-card mt-3" id="addStopForm">
+                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Neuen Stop hinzufuegen</h6>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" id="newStopName"
+                               placeholder="Name des Stops">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <input type="number" step="0.000001" class="form-control form-control-sm"
+                                   id="newStopLat" placeholder="Breitengrad">
+                        </div>
+                        <div class="col-6">
+                            <input type="number" step="0.000001" class="form-control form-control-sm"
+                                   id="newStopLng" placeholder="Laengengrad">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <select class="form-select form-select-sm" id="newStopCategory">
+                                <option value="sehenswuerdigkeit">&#x1F4CD; Sehenswuerdigkeit</option>
+                                <option value="wanderung">&#x1F6B6; Wanderung</option>
+                                <option value="stadt">&#x1F3D9;&#xFE0F; Stadt</option>
+                                <option value="unterkunft">&#x1F3E8; Unterkunft</option>
+                                <option value="restaurant">&#x1F37D;&#xFE0F; Restaurant</option>
+                                <option value="transport">&#x1F68C; Transport</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <select class="form-select form-select-sm" id="newStopRouteType">
+                                <option value="car">&#x1F697; Auto</option>
+                                <option value="foot_hiking">&#x1F6B6; Zu Fuss</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <input type="number" class="form-control form-control-sm" id="newStopDuration"
+                               placeholder="Aufenthalt (Minuten)">
+                    </div>
+                    <div class="mb-2">
+                        <select class="form-select form-select-sm" id="newStopHike">
+                            <option value="">-- Wanderung verknuepfen (optional) --</option>
+                            {% for hike in hikes %}
+                            <option value="{{ hike.id }}" data-lat="{{ hike.start_lat }}" data-lng="{{ hike.start_lng }}">
+                                {{ hike.name }} ({{ hike.region }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <textarea class="form-control form-control-sm" id="newStopDescription" rows="2"
+                                  placeholder="Beschreibung (optional)"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-sm w-100" onclick="addStop()">
+                        <i class="bi bi-plus"></i> Stop hinzufuegen
+                    </button>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-info-circle"></i> Tipp: Klicke auf die Karte um Koordinaten auszuwaehlen
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if trip.notes %}
+        <div class="card mt-3">
+            <div class="card-header"><h5 class="mb-0">Notizen</h5></div>
+            <div class="card-body"><p class="mb-0 text-light">{{ trip.notes }}</p></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const TRIP_ID = {{ trip.id }};
+const stopData = {{ stop_data|safe }};
+const IS_AUTH = {{ 'true' if current_user.is_authenticated else 'false' }};
+let map, markers = [], routeLines = [];
+
+const CATEGORY_COLORS = {
+    'wanderung': '#3DB88C',
+    'stadt': '#C8956C',
+    'sehenswuerdigkeit': '#E0A060',
+    'unterkunft': '#6BA3D6',
+    'restaurant': '#D66B6B',
+    'transport': '#A0A0A0'
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.L) return;
+
+    // Default center: Europe
+    let center = [47.5, 13.0];
+    let zoom = 5;
+    if (stopData.length > 0) {
+        center = [stopData[0].lat, stopData[0].lng];
+        zoom = 8;
+    }
+
+    map = L.map('tripMap').setView(center, zoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // Click on map to set coordinates
+    if (IS_AUTH) {
+        map.on('click', function(e) {
+            document.getElementById('newStopLat').value = e.latlng.lat.toFixed(6);
+            document.getElementById('newStopLng').value = e.latlng.lng.toFixed(6);
+        });
+    }
+
+    renderStopsOnMap();
+
+    // Link hike selector to auto-fill coords
+    const hikeSelect = document.getElementById('newStopHike');
+    if (hikeSelect) {
+        hikeSelect.addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            if (opt.value) {
+                document.getElementById('newStopLat').value = opt.dataset.lat;
+                document.getElementById('newStopLng').value = opt.dataset.lng;
+                if (!document.getElementById('newStopName').value) {
+                    document.getElementById('newStopName').value = opt.textContent.trim().split('(')[0].trim();
+                }
+                document.getElementById('newStopCategory').value = 'wanderung';
+            }
+        });
+    }
+
+    // Drag and drop reordering
+    setupDragDrop();
+});
+
+function renderStopsOnMap() {
+    markers.forEach(m => map.removeLayer(m));
+    routeLines.forEach(l => map.removeLayer(l));
+    markers = [];
+    routeLines = [];
+
+    const bounds = [];
+
+    stopData.forEach((stop, i) => {
+        const color = CATEGORY_COLORS[stop.category] || '#3DB88C';
+        const icon = L.divIcon({
+            html: '<div style="background:' + color + ';color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">' + (i + 1) + '</div>',
+            className: '',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        });
+
+        const marker = L.marker([stop.lat, stop.lng], { icon: icon })
+            .addTo(map)
+            .bindPopup('<strong>' + stop.icon + ' ' + stop.name + '</strong>');
+        markers.push(marker);
+        bounds.push([stop.lat, stop.lng]);
+
+        // Draw route to next stop
+        if (stop.route_to_next && stop.route_to_next.coordinates) {
+            const coords = stop.route_to_next.coordinates.map(c => [c[1], c[0]]);
+            const line = L.polyline(coords, {
+                color: color,
+                weight: 4,
+                opacity: 0.7,
+                dashArray: stop.route_type === 'foot_hiking' ? '8, 8' : null
+            }).addTo(map);
+            routeLines.push(line);
+            coords.forEach(c => bounds.push(c));
+        }
+    });
+
+    if (bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+    } else if (bounds.length === 1) {
+        map.setView(bounds[0], 12);
+    }
+}
+
+async function addStop() {
+    const name = document.getElementById('newStopName').value.trim();
+    const lat = parseFloat(document.getElementById('newStopLat').value);
+    const lng = parseFloat(document.getElementById('newStopLng').value);
+    const category = document.getElementById('newStopCategory').value;
+    const routeType = document.getElementById('newStopRouteType').value;
+    const duration = document.getElementById('newStopDuration').value;
+    const hikeId = document.getElementById('newStopHike').value;
+    const description = document.getElementById('newStopDescription').value;
+
+    if (!name || isNaN(lat) || isNaN(lng)) {
+        alert('Bitte Name und Koordinaten angeben.');
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/trip/' + TRIP_ID + '/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name, lat, lng,
+                stop_category: category,
+                route_type: routeType,
+                duration_minutes: duration || 0,
+                hike_id: hikeId || null,
+                description: description
+            })
+        });
+        if (resp.ok) {
+            location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Fehler beim Hinzufuegen');
+        }
+    } catch (err) {
+        alert('Netzwerkfehler: ' + err.message);
+    }
+}
+
+async function deleteStop(stopId) {
+    if (!confirm('Stop wirklich entfernen?')) return;
+    try {
+        const resp = await fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, { method: 'DELETE' });
+        if (resp.ok) location.reload();
+    } catch (err) {
+        alert('Fehler: ' + err.message);
+    }
+}
+
+function editStop(stopId) {
+    // Simple edit via prompt for now
+    const stop = stopData.find(s => s.id === stopId);
+    if (!stop) return;
+    const newName = prompt('Neuer Name:', stop.name);
+    if (newName === null) return;
+    fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName })
+    }).then(r => { if (r.ok) location.reload(); });
+}
+
+async function recalculateRoutes() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Berechne...';
+    try {
+        const resp = await fetch('/api/trip/' + TRIP_ID + '/recalculate-routes', { method: 'POST' });
+        if (resp.ok) location.reload();
+    } catch (err) {
+        alert('Fehler: ' + err.message);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Routen neu berechnen';
+}
+
+function setupDragDrop() {
+    if (!IS_AUTH) return;
+    const list = document.getElementById('stopsList');
+    if (!list) return;
+
+    let dragItem = null;
+
+    list.querySelectorAll('.stop-item').forEach(item => {
+        item.addEventListener('dragstart', function(e) {
+            dragItem = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            dragItem = null;
+        });
+        item.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        });
+        item.addEventListener('drop', function(e) {
+            e.preventDefault();
+            if (dragItem && dragItem !== this) {
+                const items = [...list.querySelectorAll('.stop-item')];
+                const fromIdx = items.indexOf(dragItem);
+                const toIdx = items.indexOf(this);
+                if (fromIdx < toIdx) {
+                    this.parentNode.insertBefore(dragItem, this.nextSibling);
+                } else {
+                    this.parentNode.insertBefore(dragItem, this);
+                }
+                saveOrder();
+            }
+        });
+    });
+}
+
+async function saveOrder() {
+    const items = document.querySelectorAll('.stop-item');
+    const order = Array.from(items).map(el => parseInt(el.dataset.id));
+    try {
+        await fetch('/api/trip/' + TRIP_ID + '/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order })
+        });
+        location.reload();
+    } catch (err) {
+        console.error('Reorder failed:', err);
+    }
+}
+</script>
+{% endblock %}
