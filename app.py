@@ -388,8 +388,8 @@ def decode_mapy_rc(rc_string):
     """Decode Mapy.com rc parameter to extract waypoint coordinates.
     Uses the same algorithm as SMap.Coords.stringToCoords."""
     ALPHABET = '0ABCD2EFGH4IJKLMN6OPQRST8UVWXYZ-1abcd3efgh5ijklmn7opqrst9uvwxyz.'
-    FIVE_CHARS = 1 + (2 << 4)  # 33
-    THREE_CHARS = 1 << 5  # 32
+    FIVE_CHARS = 2 << 4  # 32
+    THREE_CHARS = 1 << 4  # 16
 
     def parse_number(arr, count):
         result = 0
