@@ -121,21 +121,25 @@
                 <div class="add-stop-card mt-3" id="addStopForm">
                     <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Neuen Stop hinzufuegen</h6>
                     <div class="mb-2">
+                        <label for="newStopName" class="form-label small">Name *</label>
                         <input type="text" class="form-control form-control-sm" id="newStopName"
                                placeholder="Name des Stops">
                     </div>
                     <div class="row g-2 mb-2">
                         <div class="col-6">
+                            <label for="newStopLat" class="form-label small">Breitengrad *</label>
                             <input type="number" step="0.000001" class="form-control form-control-sm"
-                                   id="newStopLat" placeholder="Breitengrad">
+                                   id="newStopLat" placeholder="z.B. 47.2692">
                         </div>
                         <div class="col-6">
+                            <label for="newStopLng" class="form-label small">Laengengrad *</label>
                             <input type="number" step="0.000001" class="form-control form-control-sm"
-                                   id="newStopLng" placeholder="Laengengrad">
+                                   id="newStopLng" placeholder="z.B. 11.3933">
                         </div>
                     </div>
                     <div class="row g-2 mb-2">
                         <div class="col-6">
+                            <label for="newStopCategory" class="form-label small">Kategorie</label>
                             <select class="form-select form-select-sm" id="newStopCategory">
                                 <option value="sehenswuerdigkeit">&#x1F4CD; Sehenswuerdigkeit</option>
                                 <option value="wanderung">&#x1F6B6; Wanderung</option>
@@ -146,6 +150,7 @@
                             </select>
                         </div>
                         <div class="col-6">
+                            <label for="newStopRouteType" class="form-label small">Anreise</label>
                             <select class="form-select form-select-sm" id="newStopRouteType">
                                 <option value="car">&#x1F697; Auto</option>
                                 <option value="foot_hiking">&#x1F6B6; Zu Fuss</option>
@@ -153,12 +158,14 @@
                         </div>
                     </div>
                     <div class="mb-2">
+                        <label for="newStopDuration" class="form-label small">Aufenthalt (Minuten)</label>
                         <input type="number" class="form-control form-control-sm" id="newStopDuration"
-                               placeholder="Aufenthalt (Minuten)">
+                               placeholder="z.B. 60">
                     </div>
                     <div class="mb-2">
+                        <label for="newStopHike" class="form-label small">Wanderung verknuepfen</label>
                         <select class="form-select form-select-sm" id="newStopHike">
-                            <option value="">-- Wanderung verknuepfen (optional) --</option>
+                            <option value="">-- optional --</option>
                             {% for hike in hikes %}
                             <option value="{{ hike.id }}" data-lat="{{ hike.start_lat }}" data-lng="{{ hike.start_lng }}">
                                 {{ hike.name }} ({{ hike.region }})
@@ -167,8 +174,9 @@
                         </select>
                     </div>
                     <div class="mb-2">
+                        <label for="newStopDescription" class="form-label small">Beschreibung</label>
                         <textarea class="form-control form-control-sm" id="newStopDescription" rows="2"
-                                  placeholder="Beschreibung (optional)"></textarea>
+                                  placeholder="Optional"></textarea>
                     </div>
                     <button class="btn btn-primary btn-sm w-100" onclick="addStop()">
                         <i class="bi bi-plus"></i> Stop hinzufuegen
