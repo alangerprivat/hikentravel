@@ -517,19 +517,19 @@ def fetch_mapy_route():
             start_lat = center_lat
             start_lng = center_lng
 
+        # Check for trail/path links (dim parameter) - these don't have coordinates in URL
+        dim_value = params.get('dim', [None])[0]
+        if not start_lat and dim_value:
+            return jsonify({
+                'resolved_url': resolved_url,
+                'error': 'Dieser Link zeigt einen Wanderpfad, keine geplante Route. Bitte oeffne den Pfad in Mapy.com, klicke auf Route planen, und teile dann den neuen Link.'
+            }), 400
+
         if not start_lat or not start_lng:
             return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.',
                             'resolved_url': resolved_url}), 400
 
         if not end_lat or not end_lng:
-            dim_value = params.get('dim', [None])[0]
-            if dim_value and start_lat:
-                return jsonify({
-                    'start_lat': round(start_lat, 6),
-                    'start_lng': round(start_lng, 6),
-                    'resolved_url': resolved_url,
-                    'error': 'Dieser Link zeigt einen Wanderpfad, keine geplante Route. Bitte oeffne den Pfad in Mapy.com, klicke auf Route planen, und teile dann den neuen Link.'
-                }), 400
             return jsonify({
                 'start_lat': round(start_lat, 6),
                 'start_lng': round(start_lng, 6),
