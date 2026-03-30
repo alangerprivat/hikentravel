@@ -396,439 +396,599 @@ def edit_hike(hike_id):
                     hike.gpx_data = gpx_file.read().decode('utf-8')
             db.session.commit()
             return redirect(url_for('hike_detail', hike_id=hike.id))
-        except Exceptio\ÈNÙ\ÜÚ[ÛÛXÚÊ
-B]\[\Ý[\]J	ÚZÙWÙÜK[	ËZÙOZZÙKØ]YÛÜY\ÏPØ]YÛÜK]Y\K[
+        except Exception as e:
+            db.session.rollback()
+            return render_template('hike_form.html', hike=hike, categories=Category.query.all(), error=str(e))
+    return render_template('hike_form.html', hike=hike, categories=Category.query.all())
 
-K\Ü\ÝJJB]\[\Ý[\]J	ÚZÙWÙÜK[	ËZÙOZZÙKØ]YÛÜY\ÏPØ]YÛÜK]Y\K[
+@app.route('/hike/<int:hike_id>/delete', methods=['POST'])
+@login_required
+def delete_hike(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    db.session.delete(hike)
+    db.session.commit()
+    return redirect(url_for('index'))
 
-JB\Ý]J	ËÚZÙKÏ[ZÙWÚYÙ[]IËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YY[]WÚZÙJZÙWÚY
-NZÙHHZÙK]Y\KÙ]ÛÜÍ
-ZÙWÚY
-BÙ\ÜÚ[Û[]JZÙJBÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/hike/<int:hike_id>/gpx')
+def download_gpx(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    if hike.gpx_data:
+        gpx_content = hike.gpx_data
+    else:
+        gpx_content = generate_gpx(hike)
+    filename = secure_filename(hike.name) + '.gpx'
+    return send_file(
+        __import__('io').BytesIO(gpx_content.encode('utf-8')),
+        mimetype='application/gpx+xml',
+        as_attachment=True,
+        download_name=filename
+    )
 
-B]\Y\XÝ
-\ÙÜ	Ú[^	ÊJB\Ý]J	ËÚZÙKÏ[ZÙWÚYÙÜ	ÊBYÝÛØYÙÜ
-ZÙWÚY
-NZÙHHZÙK]Y\KÙ]ÛÜÍ
-ZÙWÚY
-BYZÙKÜÙ]NÜØÛÛ[HZÙKÜÙ]B[ÙNÜØÛÛ[HÙ[\]WÙÜ
-ZÙJB[[[YHHÙXÝ\WÙ[[[YJZÙK[YJH
-È	ËÜ	Â]\Ù[Ù[J×Ú[\Ü×Ê	Ú[ÉÊK]\ÒSÊÜØÛÛ[[ÛÙJ	Ý]N	ÊJKZ[Y]\OIØ\XØ][ÛÙÜ
-Þ[	Ë\×Ø]XÚY[UYKÝÛØYÛ[YOY[[[YB
-BYÙ[\]WÙÜ
-ZÙJNÜHÞ[\Ú[ÛHK[ÛÙ[ÏHUNÏÜ\Ú[ÛHKHÜX]ÜHZÙS][[ÎÚOHËÝÝÝËÌËÜËÌKÖSØÚ[XKZ[Ý[ÙH[ÏHËÝÝÝËÜÙÜY^ÛÛKÑÔÌKÌHÚNØÚ[XSØØ][ÛHËÝÝÝËÜÙÜY^ÛÛKÑÔÌKÌHËÝÝÝËÜÙÜY^ÛÛKÑÔÌKÌKÙÜÙY]Y]O[YOÚZÙK[Y_OÛ[YO\ØÏÚZÙK\ØÜ\[ÛÜ	ÉßOÙ\ØÏ[YOÚZÙKÜX]YØ]\ÛÙÜX]
+def generate_gpx(hike):
+    gpx = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HikeNTravel" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>{hike.name}</name>
+    <desc>{hike.description or ''}</desc>
+    <time>{hike.created_at.isoformat()}Z</time>
+  </metadata>
+  <wpt lat="{hike.start_lat}" lon="{hike.start_lng}">
+    <name>{hike.name} - Start</name>
+  </wpt>"""
+    if hike.end_lat and hike.end_lng:
+        gpx += f"""
+  <wpt lat="{hike.end_lat}" lon="{hike.end_lng}">
+    <name>{hike.name} - End</name>
+  </wpt>"""
+    gpx += """
+  <trk>
+    <name>{}</name>
+    <trkseg>
+      <trkpt lat="{}" lon="{}"><name>Start</name></trkpt>
+    </trkseg>
+  </trk>
+</gpx>""".format(hike.name, hike.start_lat, hike.start_lng)
+    return gpx
 
-_VÝ[YOÛY]Y]OÜ]HÚZÙKÝ\Û]HÛHÚZÙKÝ\ÛßH[YOÚZÙK[Y_HHÝ\Û[YOÝÜYZÙK[Û][ZÙK[ÛÎÜ
-ÏHÜ]HÚZÙK[Û]HÛHÚZÙK[ÛßH[YOÚZÙK[Y_HH[Û[YOÝÜÜ
-ÏHÏ[YOßOÛ[YOÜÙYÏÜ]HßHÛHßH[YOÝ\Û[YOÝÜÝÜÙYÏÝÏÙÜÜX]
-ZÙK[YKZÙKÝ\Û]ZÙKÝ\ÛÊB]\Ü\Ý]J	ËØ\KÚZÙKÛX\Y]IÊBYÙ]ÛX\Ù]J
-NZÙ\ÈHZÙK]Y\K[
+@app.route('/api/hike/map-data')
+def get_map_data():
+    hikes = Hike.query.all()
+    return jsonify({
+        'hikes': [{
+            'id': h.id,
+            'name': h.name,
+            'lat': h.start_lat,
+            'lng': h.start_lng,
+            'difficulty': h.difficulty,
+            'category': h.category.name if h.category else None,
+        } for h in hikes]
+    })
 
-B]\ÛÛYJÂ	ÚZÙ\ÉÎÞÂ	ÚY	ÎY	Û[YIÎ[YK	Û]	ÎÝ\Û]	ÛÉÎÝ\ÛË	ÙYXÝ[IÎYXÝ[K	ØØ]YÛÜIÎØ]YÛÜK[YHYØ]YÛÜH[ÙHÛKHÜ[ZÙ\×BJBÈOOOOOOOOOOOOOOOOOOOHTÕUTÈOOOOOOOOOOOOOOOOOOOB\Ý]J	ËÝ\ÉÊBY\Û\Ý
+# ==================== TRIP ROUTES ====================
 
-N\ÈH\]Y\KÜ\ØJ\ÜX]YØ]\ØÊ
-JK[
+@app.route('/trips')
+def trip_list():
+    trips = Trip.query.order_by(Trip.created_at.desc()).all()
+    return render_template('trip_list.html', trips=trips)
 
-B]\[\Ý[\]J	Ý\Û\Ý[	Ë\Ï]\ÊB\Ý]J	ËÝ\Û]ÉËY]ÙÏVÉÑÑU	Ë	ÔÔÕ	×JBÙÚ[Ü\]Z\YYÜX]WÝ\
+@app.route('/trip/new', methods=['GET', 'POST'])
+@login_required
+def create_trip():
+    if request.method == 'POST':
+        try:
+            trip = Trip(
+                name=request.form.get('name'),
+                description=request.form.get('description'),
+                start_date=request.form.get('start_date') or None,
+                end_date=request.form.get('end_date') or None,
+                notes=request.form.get('notes'),
+            )
+            db.session.add(trip)
+            db.session.commit()
+            return redirect(url_for('trip_detail', trip_id=trip.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('trip_form.html', error=str(e))
+    return render_template('trip_form.html')
 
-NY\]Y\ÝY]ÙOH	ÔÔÕ	ÎN\H\
-[YO\\]Y\ÝÜKÙ]
-	Û[YIÊK\ØÜ\[Û\\]Y\ÝÜKÙ]
-	Ù\ØÜ\[ÛÊKÝ\Ù]O\\]Y\ÝÜKÙ]
-	ÜÝ\Ù]IÊHÜÛK[Ù]O\\]Y\ÝÜKÙ]
-	Ù[Ù]IÊHÜÛKÝ\Ï\\]Y\ÝÜKÙ]
-	ÛÝ\ÉÊK
-BÙ\ÜÚ[ÛY
-\
-BÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/trip/<int:trip_id>')
+def trip_detail(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    hikes = Hike.query.order_by(Hike.name).all()
+    packing_items = PackingItem.query.filter_by(trip_id=trip.id).order_by(PackingItem.category, PackingItem.id).all()
+    stop_data = []
+    for stop in stops:
+        sd = {
+            'id': stop.id,
+            'name': stop.name,
+            'lat': stop.lat,
+            'lng': stop.lng,
+            'category': stop.stop_category,
+            'icon': stop.get_category_icon(),
+            'position': stop.position,
+            'route_to_next': json.loads(stop.route_to_next) if stop.route_to_next else None,
+            'distance_to_next_km': stop.distance_to_next_km,
+            'duration_to_next_min': stop.duration_to_next_min,
+            'route_type': stop.route_type,
+            'photo_url': stop.photo_url or '',
+        }
+        stop_data.append(sd)
+    return render_template('trip_detail.html', trip=trip, stops=stops,
+                           stop_data=json.dumps(stop_data), hikes=hikes,
+                           packing_items=packing_items)
 
-B]\Y\XÝ
-\ÙÜ	Ý\Ù]Z[	Ë\ÚY]\Y
-JB^Ù\^Ù\[Û\ÈNÙ\ÜÚ[ÛÛXÚÊ
-B]\[\Ý[\]J	Ý\ÙÜK[	Ë\Ü\ÝJJB]\[\Ý[\]J	Ý\ÙÜK[	ÊB\Ý]J	ËÝ\Ï[\ÚYÊBY\Ù]Z[
-\ÚY
-N\H\]Y\KÙ]ÛÜÍ
-\ÚY
-BÝÜÈH\ÝÜ]Y\K[\ØJ\ÚY]\Y
-KÜ\ØJ\ÝÜÜÚ][ÛK[
+@app.route('/trip/<int:trip_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_trip(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    if request.method == 'POST':
+        try:
+            trip.name = request.form.get('name')
+            trip.description = request.form.get('description')
+            trip.start_date = request.form.get('start_date') or None
+            trip.end_date = request.form.get('end_date') or None
+            trip.notes = request.form.get('notes')
+            db.session.commit()
+            return redirect(url_for('trip_detail', trip_id=trip.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('trip_form.html', trip=trip, error=str(e))
+    return render_template('trip_form.html', trip=trip)
 
-BZÙ\ÈHZÙK]Y\KÜ\ØJZÙK[YJK[
+@app.route('/trip/<int:trip_id>/delete', methods=['POST'])
+@login_required
+def delete_trip(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    db.session.delete(trip)
+    db.session.commit()
+    return redirect(url_for('trip_list'))
 
-BXÚÚ[×Ú][\ÈHXÚÚ[Ò][K]Y\K[\ØJ\ÚY]\Y
-KÜ\ØJXÚÚ[Ò][KØ]YÛÜKXÚÚ[Ò][KY
-K[
+@app.route('/api/geocode')
+def geocode_search():
+    """Search for places using Nominatim (OpenStreetMap geocoding)"""
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
+        return jsonify([])
+    try:
+        encoded_q = urllib.parse.quote(query)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded_q}&format=json&limit=5&addressdetails=1&accept-language=de"
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0 (hiking trip planner)')
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode('utf-8'))
+        results = []
+        for item in data:
+            results.append({
+                'name': item.get('display_name', ''),
+                'short_name': item.get('name', item.get('display_name', '')[:40]),
+                'lat': float(item.get('lat', 0)),
+                'lng': float(item.get('lon', 0)),
+                'type': item.get('type', ''),
+                'category': item.get('class', '')
+            })
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([])
 
-BÝÜÙ]HH×BÜÝÜ[ÝÜÎÙHÂ	ÚY	ÎÝÜY	Û[YIÎÝÜ[YK	Û]	ÎÝÜ]	ÛÉÎÝÜË	ØØ]YÛÜIÎÝÜÝÜØØ]YÛÜK	ÚXÛÛÎÝÜÙ]ØØ]YÛÜWÚXÛÛ
-K	ÜÜÚ][ÛÎÝÜÜÚ][Û	ÜÝ]WÝ×Û^	ÎÛÛØYÊÝÜÝ]WÝ×Û^
-HYÝÜÝ]WÝ×Û^[ÙHÛK	Ù\Ý[ÙWÝ×Û^ÚÛIÎÝÜ\Ý[ÙWÝ×Û^ÚÛK	Ù\][ÛÝ×Û^ÛZ[ÎÝÜ\][ÛÝ×Û^ÛZ[	ÜÝ]WÝ\IÎÝÜÝ]WÝ\K	ÜÝ×Ý\	ÎÝÜÝ×Ý\Ü	ÉËBÝÜÙ]K\[
-Ù
-B]\[\Ý[\]J	Ý\Ù]Z[[	Ë\]\ÝÜÏ\ÝÜËÝÜÙ]OZÛÛ[\ÊÝÜÙ]JKZÙ\ÏZZÙ\ËXÚÚ[×Ú][\Ï\XÚÚ[×Ú][\ÊB\Ý]J	ËÝ\Ï[\ÚYÙY]	ËY]ÙÏVÉÑÑU	Ë	ÔÔÕ	×JBÙÚ[Ü\]Z\YYY]Ý\
-\ÚY
-N\H\]Y\KÙ]ÛÜÍ
-\ÚY
-BY\]Y\ÝY]ÙOH	ÔÔÕ	ÎN\[YHH\]Y\ÝÜKÙ]
-	Û[YIÊB\\ØÜ\[ÛH\]Y\ÝÜKÙ]
-	Ù\ØÜ\[ÛÊB\Ý\Ù]HH\]Y\ÝÜKÙ]
-	ÜÝ\Ù]IÊHÜÛB\[Ù]HH\]Y\ÝÜKÙ]
-	Ù[Ù]IÊHÜÛB\Ý\ÈH\]Y\ÝÜKÙ]
-	ÛÝ\ÉÊBÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/api/trip/<int:trip_id>/stop', methods=['POST'])
+@login_required
+def add_trip_stop(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    data = request.get_json()
+    max_pos = db.session.query(db.func.max(TripStop.position)).filter_by(trip_id=trip.id).scalar() or -1
+    stop = TripStop(
+        trip_id=trip.id,
+        name=data.get('name', 'Neuer Stop'),
+        description=data.get('description', ''),
+        stop_category=data.get('stop_category', 'sehenswuerdigkeit'),
+        lat=float(data.get('lat', 0)),
+        lng=float(data.get('lng', 0)),
+        position=max_pos + 1,
+        duration_minutes=int(data.get('duration_minutes', 0)) or None,
+        notes=data.get('notes', ''),
+        hike_id=int(data.get('hike_id')) if data.get('hike_id') else None,
+        route_type=data.get('route_type', 'car'),
+        photo_url=data.get('photo_url', '') or None,
+    )
+    db.session.add(stop)
+    db.session.commit()
 
-B]\Y\XÝ
-\ÙÜ	Ý\Ù]Z[	Ë\ÚY]\Y
-JB^Ù\^Ù\[Û\ÈNÙ\ÜÚ[ÛÛXÚÊ
-B]\[\Ý[\]J	Ý\ÙÜK[	Ë\]\\Ü\ÝJJB]\[\Ý[\]J	Ý\ÙÜK[	Ë\]\
-B\Ý]J	ËÝ\Ï[\ÚYÙ[]IËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YY[]WÝ\
-\ÚY
-N\H\]Y\KÙ]ÛÜÍ
-\ÚY
-BÙ\ÜÚ[Û[]J\
-BÙ\ÜÚ[ÛÛÛ[Z]
+    # Auto-route from previous stop
+    prev_stop = TripStop.query.filter_by(trip_id=trip.id).filter(TripStop.position < stop.position).order_by(TripStop.position.desc()).first()
+    if prev_stop:
+        route_result = calculate_route_between(prev_stop, stop)
+        if route_result:
+            prev_stop.route_to_next = json.dumps(route_result.get('geometry'))
+            prev_stop.distance_to_next_km = route_result.get('distance_km')
+            prev_stop.duration_to_next_min = route_result.get('duration_min')
+            prev_stop.route_type = data.get('route_type', 'car')
+            db.session.commit()
 
-B]\Y\XÝ
-\ÙÜ	Ý\Û\Ý	ÊJB\Ý]J	ËØ\KÙÙ[ØÛÙIÊBYÙ[ØÛÙWÜÙX\Ú
+    return jsonify({
+        'id': stop.id,
+        'name': stop.name,
+        'lat': stop.lat,
+        'lng': stop.lng,
+        'position': stop.position,
+        'category': stop.stop_category,
+        'icon': stop.get_category_icon(),
+    })
 
-NÙX\ÚÜXÙ\È\Ú[ÈÛZ[][H
-Ü[ÝY]X\Ù[ØÛÙ[ÊH]Y\HH\]Y\Ý\ÜËÙ]
-	ÜIË	ÉÊKÝ\
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>', methods=['PUT'])
+@login_required
+def update_trip_stop(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    stop.name = data.get('name', stop.name)
+    stop.description = data.get('description', stop.description)
+    stop.stop_category = data.get('stop_category', stop.stop_category)
+    stop.lat = float(data.get('lat', stop.lat))
+    stop.lng = float(data.get('lng', stop.lng))
+    stop.duration_minutes = int(data.get('duration_minutes', 0)) or stop.duration_minutes
+    stop.notes = data.get('notes', stop.notes)
+    stop.route_type = data.get('route_type', stop.route_type)
+    stop.hike_id = int(data.get('hike_id')) if data.get('hike_id') else stop.hike_id
+    if 'photo_url' in data:
+        stop.photo_url = data.get('photo_url') or None
+    db.session.commit()
+    return jsonify({'success': True})
 
-BYÝ]Y\HÜ[]Y\JH]\ÛÛYJ×JBN[ÛÙYÜHH\X\ÙK][ÝJ]Y\JB\HÎËÛÛZ[][KÜ[ÝY]X\ÜËÜÙX\ÚÜO^Ù[ÛÙYÜ_IÜX]ZÛÛ[Z]MIY\ÜÙ]Z[ÏLIXØÙ\[[ÝXYÙOYH\HH\X\]Y\Ý\]Y\Ý
-\
-B\KYÚXY\	Õ\Ù\PYÙ[	Ë	ÒZÙS][ÌK
-ZÚ[È\[\IÊB\ÜH\X\]Y\Ý\Ü[\K[Y[Ý]LL
-B]HHÛÛØYÊ\ÜXY
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>', methods=['DELETE'])
+@login_required
+def delete_trip_stop(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    db.session.delete(stop)
+    db.session.commit()
 
-KXÛÙJ	Ý]N	ÊJB\Ý[ÈH×BÜ][H[]N\Ý[Ë\[
-Â	Û[YIÎ][KÙ]
-	Ù\Ü^WÛ[YIË	ÉÊK	ÜÚÜÛ[YIÎ][KÙ]
-	Û[YIË][KÙ]
-	Ù\Ü^WÛ[YIË	ÉÊVÎJK	Û]	ÎØ]
-][KÙ]
-	Û]	Ë
-JK	ÛÉÎØ]
-][KÙ]
-	ÛÛË
-JK	Ý\IÎ][KÙ]
-	Ý\IË	ÉÊK	ØØ]YÛÜIÎ][KÙ]
-	ØÛ\ÜÉË	ÉÊBJB]\ÛÛYJ\Ý[ÊB^Ù\^Ù\[Û\ÈN]\ÛÛYJ×JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜÝÜ	ËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YYYÝ\ÜÝÜ
-\ÚY
-N\H\]Y\KÙ]ÛÜÍ
-\ÚY
-B]HH\]Y\ÝÙ]ÚÛÛ
-BX^ÜÜÈHÙ\ÜÚ[Û]Y\J[ËX^
-\ÝÜÜÚ][ÛJK[\ØJ\ÚY]\Y
-KØØ[\
-HÜLBÝÜH\ÝÜ
-\ÚY]\Y[YOY]KÙ]
-	Û[YIË	Ó]Y\ÝÜ	ÊK\ØÜ\[ÛY]KÙ]
-	Ù\ØÜ\[ÛË	ÉÊKÝÜØØ]YÛÜOY]KÙ]
-	ÜÝÜØØ]YÛÜIË	ÜÙZ[ÝÝY\YÚÙZ]	ÊK]YØ]
-]KÙ]
-	Û]	Ë
-JKÏYØ]
-]KÙ]
-	ÛÉË
-JKÜÚ][Û[X^ÜÜÈ
-ÈK\][ÛÛZ[]\ÏZ[
-]KÙ]
-	Ù\][ÛÛZ[]\ÉË
-JHÜÛKÝ\ÏY]KÙ]
-	ÛÝ\ÉË	ÉÊKZÙWÚYZ[
-]KÙ]
-	ÚZÙWÚY	ÊJHY]KÙ]
-	ÚZÙWÚY	ÊH[ÙHÛKÝ]WÝ\OY]KÙ]
-	ÜÝ]WÝ\IË	ØØ\ÊKÝ×Ý\Y]KÙ]
-	ÜÝ×Ý\	Ë	ÉÊHÜÛK
-BÙ\ÜÚ[ÛY
-ÝÜ
-BÙ\ÜÚ[ÛÛÛ[Z]
+    # Recalculate positions
+    remaining = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    for i, s in enumerate(remaining):
+        s.position = i
+    db.session.commit()
 
-BÈ]]Ë\Ý]HÛH][Ý\ÈÝÜ]ÜÝÜH\ÝÜ]Y\K[\ØJ\ÚY]\Y
-K[\\ÝÜÜÚ][ÛÝÜÜÚ][ÛKÜ\ØJ\ÝÜÜÚ][Û\ØÊ
-JK\Ý
+    recalculate_trip_routes(trip_id)
+    return jsonify({'success': True})
 
-BY]ÜÝÜÝ]WÜ\Ý[HØ[Ý[]WÜÝ]WØ]ÙY[]ÜÝÜÝÜ
-BYÝ]WÜ\Ý[]ÜÝÜÝ]WÝ×Û^HÛÛ[\ÊÝ]WÜ\Ý[Ù]
-	ÙÙ[ÛY]IÊJB]ÜÝÜ\Ý[ÙWÝ×Û^ÚÛHHÝ]WÜ\Ý[Ù]
-	Ù\Ý[ÙWÚÛIÊB]ÜÝÜ\][ÛÝ×Û^ÛZ[HÝ]WÜ\Ý[Ù]
-	Ù\][ÛÛZ[ÊB]ÜÝÜÝ]WÝ\HH]KÙ]
-	ÜÝ]WÝ\IË	ØØ\ÊBÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/api/trip/<int:trip_id>/reorder', methods=['POST'])
+@login_required
+def reorder_trip_stops(trip_id):
+    data = request.get_json()
+    order = data.get('order', [])
+    for i, stop_id in enumerate(order):
+        stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first()
+        if stop:
+            stop.position = i
+    db.session.commit()
+    recalculate_trip_routes(trip_id)
+    return jsonify({'success': True})
 
-B]\ÛÛYJÂ	ÚY	ÎÝÜY	Û[YIÎÝÜ[YK	Û]	ÎÝÜ]	ÛÉÎÝÜË	ÜÜÚ][ÛÎÝÜÜÚ][Û	ØØ]YÛÜIÎÝÜÝÜØØ]YÛÜK	ÚXÛÛÎÝÜÙ]ØØ]YÛÜWÚXÛÛ
-KJB\Ý]J	ËØ\KÝ\Ï[\ÚYÜÝÜÏ[ÝÜÚYËY]ÙÏVÉÔU	×JBÙÚ[Ü\]Z\YY\]WÝ\ÜÝÜ
-\ÚYÝÜÚY
-NÝÜH\ÝÜ]Y\K[\ØJY\ÝÜÚY\ÚY]\ÚY
-K\ÝÛÜÍ
+@app.route('/api/trip/<int:trip_id>/recalculate-routes', methods=['POST'])
+@login_required
+def api_recalculate_routes(trip_id):
+    recalculate_trip_routes(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    result = []
+    for stop in stops:
+        result.append({
+            'id': stop.id,
+            'route_to_next': json.loads(stop.route_to_next) if stop.route_to_next else None,
+            'distance_to_next_km': stop.distance_to_next_km,
+            'duration_to_next_min': stop.duration_to_next_min,
+            'route_type': stop.route_type,
+        })
+    return jsonify({'stops': result})
 
-B]HH\]Y\ÝÙ]ÚÛÛ
-BÝÜ[YHH]KÙ]
-	Û[YIËÝÜ[YJBÝÜ\ØÜ\[ÛH]KÙ]
-	Ù\ØÜ\[ÛËÝÜ\ØÜ\[ÛBÝÜÝÜØØ]YÛÜHH]KÙ]
-	ÜÝÜØØ]YÛÜIËÝÜÝÜØØ]YÛÜJBÝÜ]HØ]
-]KÙ]
-	Û]	ËÝÜ]
-JBÝÜÈHØ]
-]KÙ]
-	ÛÉËÝÜÊJBÝÜ\][ÛÛZ[]\ÈH[
-]KÙ]
-	Ù\][ÛÛZ[]\ÉË
-JHÜÝÜ\][ÛÛZ[]\ÂÝÜÝ\ÈH]KÙ]
-	ÛÝ\ÉËÝÜÝ\ÊBÝÜÝ]WÝ\HH]KÙ]
-	ÜÝ]WÝ\IËÝÜÝ]WÝ\JBÝÜZÙWÚYH[
-]KÙ]
-	ÚZÙWÚY	ÊJHY]KÙ]
-	ÚZÙWÚY	ÊH[ÙHÝÜZÙWÚYY	ÜÝ×Ý\	È[]NÝÜÝ×Ý\H]KÙ]
-	ÜÝ×Ý\	ÊHÜÛBÙ\ÜÚ[ÛÛÛ[Z]
+# ==================== PACKING LIST API ====================
 
-B]\ÛÛYJÉÜÝXØÙ\ÜÉÎY_JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜÝÜÏ[ÝÜÚYËY]ÙÏVÉÑSUI×JBÙÚ[Ü\]Z\YY[]WÝ\ÜÝÜ
-\ÚYÝÜÚY
-NÝÜH\ÝÜ]Y\K[\ØJY\ÝÜÚY\ÚY]\ÚY
-K\ÝÛÜÍ
+@app.route('/api/trip/<int:trip_id>/packing', methods=['GET'])
+def get_packing_items(trip_id):
+    items = PackingItem.query.filter_by(trip_id=trip_id).order_by(PackingItem.category, PackingItem.id).all()
+    return jsonify([{
+        'id': item.id,
+        'name': item.name,
+        'is_packed': item.is_packed,
+        'category': item.category,
+    } for item in items])
 
-BÙ\ÜÚ[Û[]JÝÜ
-BÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/api/trip/<int:trip_id>/packing', methods=['POST'])
+@login_required
+def add_packing_item(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Name erforderlich'}), 400
+    item = PackingItem(
+        trip_id=trip.id,
+        name=name,
+        is_packed=False,
+        category=data.get('category', 'Sonstiges'),
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({'id': item.id, 'name': item.name, 'is_packed': item.is_packed, 'category': item.category})
 
-BÈXØ[Ý[]HÜÚ][ÛÂ[XZ[[ÈH\ÝÜ]Y\K[\ØJ\ÚY]\ÚY
-KÜ\ØJ\ÝÜÜÚ][ÛK[
+@app.route('/api/trip/<int:trip_id>/packing/<int:item_id>', methods=['PUT'])
+@login_required
+def update_packing_item(trip_id, item_id):
+    item = PackingItem.query.filter_by(id=item_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    if 'name' in data:
+        item.name = data['name']
+    if 'is_packed' in data:
+        item.is_packed = bool(data['is_packed'])
+    if 'category' in data:
+        item.category = data['category']
+    db.session.commit()
+    return jsonify({'success': True})
 
-BÜKÈ[[[Y\]J[XZ[[ÊNËÜÚ][ÛHBÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/api/trip/<int:trip_id>/packing/<int:item_id>', methods=['DELETE'])
+@login_required
+def delete_packing_item(trip_id, item_id):
+    item = PackingItem.query.filter_by(id=item_id, trip_id=trip_id).first_or_404()
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({'success': True})
 
-BXØ[Ý[]WÝ\ÜÝ]\Ê\ÚY
-B]\ÛÛYJÉÜÝXØÙ\ÜÉÎY_JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜ[Ü\ËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YY[Ü\Ý\ÜÝÜÊ\ÚY
-N]HH\]Y\ÝÙ]ÚÛÛ
-BÜ\H]KÙ]
-	ÛÜ\Ë×JBÜKÝÜÚY[[[Y\]JÜ\NÝÜH\ÝÜ]Y\K[\ØJY\ÝÜÚY\ÚY]\ÚY
-K\Ý
+# ==================== ROUTE HELPERS ====================
 
-BYÝÜÝÜÜÚ][ÛHBÙ\ÜÚ[ÛÛÛ[Z]
+def recalculate_trip_routes(trip_id):
+    stops = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    for i in range(len(stops)):
+        if i < len(stops) - 1:
+            route_result = calculate_route_between(stops[i], stops[i + 1])
+            if route_result:
+                stops[i].route_to_next = json.dumps(route_result.get('geometry'))
+                stops[i].distance_to_next_km = route_result.get('distance_km')
+                stops[i].duration_to_next_min = route_result.get('duration_min')
+            else:
+                stops[i].route_to_next = None
+                stops[i].distance_to_next_km = None
+                stops[i].duration_to_next_min = None
+        else:
+            stops[i].route_to_next = None
+            stops[i].distance_to_next_km = None
+            stops[i].duration_to_next_min = None
+    db.session.commit()
 
-BXØ[Ý[]WÝ\ÜÝ]\Ê\ÚY
-B]\ÛÛYJÉÜÝXØÙ\ÜÉÎY_JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜXØ[Ý[]K\Ý]\ÉËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YY\WÜXØ[Ý[]WÜÝ]\Ê\ÚY
-NXØ[Ý[]WÝ\ÜÝ]\Ê\ÚY
-BÝÜÈH\ÝÜ]Y\K[\ØJ\ÚY]\ÚY
-KÜ\ØJ\ÝÜÜÚ][ÛK[
+def calculate_route_between(stop_a, stop_b):
+    try:
+        api_key = app.config.get('MAPY_API_KEY', '')
+        route_type = stop_a.route_type or 'car'
+        if route_type == 'public_transport':
+            route_type = 'car'
+        route_api_url = (
+            "https://api.mapy.cz/v1/routing/route"
+            "?apikey=" + api_key +
+            "&lang=de"
+            "&start=" + str(stop_a.lng) + "," + str(stop_a.lat) +
+            "&end=" + str(stop_b.lng) + "," + str(stop_b.lat) +
+            "&routeType=" + route_type
+        )
+        req = urllib.request.Request(route_api_url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0')
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        route_data = json.loads(resp.read().decode('utf-8'))
+        distance_m = route_data.get('length', 0)
+        duration_s = route_data.get('duration', 0)
+        geo_feature = route_data.get('geometry', {})
+        if isinstance(geo_feature, dict) and 'geometry' in geo_feature:
+            geometry = geo_feature['geometry']
+        else:
+            geometry = geo_feature
+        return {
+            'geometry': geometry,
+            'distance_km': round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1),
+            'duration_min': int(duration_s / 60) if duration_s > 100 else int(duration_s),
+        }
+    except Exception:
+        return None
 
-B\Ý[H×BÜÝÜ[ÝÜÎ\Ý[\[
-Â	ÚY	ÎÝÜY	ÜÝ]WÝ×Û^	ÎÛÛØYÊÝÜÝ]WÝ×Û^
-HYÝÜÝ]WÝ×Û^[ÙHÛK	Ù\Ý[ÙWÝ×Û^ÚÛIÎÝÜ\Ý[ÙWÝ×Û^ÚÛK	Ù\][ÛÝ×Û^ÛZ[ÎÝÜ\][ÛÝ×Û^ÛZ[	ÜÝ]WÝ\IÎÝÜÝ]WÝ\KJB]\ÛÛYJÉÜÝÜÉÎ\Ý[JBÈOOOOOOOOOOOOOOOOOOOHPÒÒSÈTÕTHOOOOOOOOOOOOOOOOOOOB\Ý]J	ËØ\KÝ\Ï[\ÚYÜXÚÚ[ÉËY]ÙÏVÉÑÑU	×JBYÙ]ÜXÚÚ[×Ú][\Ê\ÚY
-N][\ÈHXÚÚ[Ò][K]Y\K[\ØJ\ÚY]\ÚY
-KÜ\ØJXÚÚ[Ò][KØ]YÛÜKXÚÚ[Ò][KY
-K[
+# ==================== MAPY ROUTE API ====================
 
-B]\ÛÛYJÞÂ	ÚY	Î][KY	Û[YIÎ][K[YK	Ú\×ÜXÚÙY	Î][K\×ÜXÚÙY	ØØ]YÛÜIÎ][KØ]YÛÜKHÜ][H[][\×JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜXÚÚ[ÉËY]ÙÏVÉÔÔÕ	×JBÙÚ[Ü\]Z\YYYÜXÚÚ[×Ú][J\ÚY
-N\H\]Y\KÙ]ÛÜÍ
-\ÚY
-B]HH\]Y\ÝÙ]ÚÛÛ
-B[YHH]KÙ]
-	Û[YIË	ÉÊKÝ\
+def decode_mapy_rc(rc_string):
+    ALPHABET = '0ABCD2EFGH4IJKLMN6OPQRST8UVWXYZ-1abcd3efgh5ijklmn7opqrst9uvwxyz.'
+    FIVE_CHARS = 2 << 4
+    THREE_CHARS = 1 << 4
 
-BYÝ[YN]\ÛÛYJÉÙ\ÜÎ	Ó[YH\Ü\XÚ	ßJK
-][HHXÚÚ[Ò][J\ÚY]\Y[YO[[YK\×ÜXÚÙYQ[ÙKØ]YÛÜOY]KÙ]
-	ØØ]YÛÜIË	ÔÛÛÝYÙ\ÉÊK
-BÙ\ÜÚ[ÛY
-][JBÙ\ÜÚ[ÛÛÛ[Z]
+    def parse_number(arr, count):
+        result = 0
+        i = count
+        while i > 0:
+            if not arr:
+                raise ValueError("No data")
+            ch = arr.pop()
+            index = ALPHABET.find(ch)
+            if index == -1:
+                continue
+            result = (result << 6) + index
+            i -= 1
+        return result
 
-B]\ÛÛYJÉÚY	Î][KY	Û[YIÎ][K[YK	Ú\×ÜXÚÙY	Î][K\×ÜXÚÙY	ØØ]YÛÜIÎ][KØ]YÛÜ_JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜXÚÚ[ËÏ[][WÚYËY]ÙÏVÉÔU	×JBÙÚ[Ü\]Z\YY\]WÜXÚÚ[×Ú][J\ÚY][WÚY
-N][HHXÚÚ[Ò][K]Y\K[\ØJYZ][WÚY\ÚY]\ÚY
-K\ÝÛÜÍ
+    results = []
+    coords = [0, 0]
+    coord_index = 0
+    arr = list(reversed(rc_string.strip()))
 
-B]HH\]Y\ÝÙ]ÚÛÛ
-BY	Û[YIÈ[]N][K[YHH]VÉÛ[YI×BY	Ú\×ÜXÚÙY	È[]N][K\×ÜXÚÙYHÛÛ
-]VÉÚ\×ÜXÚÙY	×JBY	ØØ]YÛÜIÈ[]N][KØ]YÛÜHH]VÉØØ]YÛÜI×BÙ\ÜÚ[ÛÛÛ[Z]
+    while arr:
+        num = parse_number(arr, 1)
+        if (num & FIVE_CHARS) == FIVE_CHARS:
+            num -= FIVE_CHARS
+            num = ((num & 15) << 24) + parse_number(arr, 4)
+            coords[coord_index] = num
+        elif (num & THREE_CHARS) == THREE_CHARS:
+            num = ((num & 15) << 12) + parse_number(arr, 2)
+            num -= 1 << 15
+            coords[coord_index] += num
+        else:
+            num = ((num & 31) << 6) + parse_number(arr, 1)
+            num -= 1 << 10
+            coords[coord_index] += num
+        if coord_index:
+            lng = coords[0] * 360 / (1 << 28) - 180
+            lat = coords[1] * 180 / (1 << 28) - 90
+            results.append({'lat': round(lat, 6), 'lng': round(lng, 6)})
+        coord_index = (coord_index + 1) % 2
 
-B]\ÛÛYJÉÜÝXØÙ\ÜÉÎY_JB\Ý]J	ËØ\KÝ\Ï[\ÚYÜXÚÚ[ËÏ[][WÚYËY]ÙÏVÉÑSUI×JBÙÚ[Ü\]Z\YY[]WÜXÚÚ[×Ú][J\ÚY][WÚY
-N][HHXÚÚ[Ò][K]Y\K[\ØJYZ][WÚY\ÚY]\ÚY
-K\ÝÛÜÍ
+    return results
 
-BÙ\ÜÚ[Û[]J][JBÙ\ÜÚ[ÛÛÛ[Z]
+@app.route('/api/fetch-mapy-route', methods=['POST'])
+def fetch_mapy_route():
+    data = request.get_json()
+    mapy_url = data.get('url', '')
+    try:
+        resolved_url = mapy_url
+        if '/s/' in mapy_url:
+            try:
+                req = urllib.request.Request(mapy_url, method='HEAD')
+                req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                req.add_header('Accept', 'text/html')
+                response = urllib.request.urlopen(req, timeout=10)
+                resolved_url = response.url
+            except Exception:
+                try:
+                    req = urllib.request.Request(mapy_url)
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                    req.add_header('Accept', 'text/html')
+                    response = urllib.request.urlopen(req, timeout=10)
+                    resolved_url = response.url
+                    if resolved_url == mapy_url or '/s/' in resolved_url:
+                        import re
+                        html = response.read().decode('utf-8', errors='ignore')
+                        meta_match = re.search(r'url=([^"\'>\s]+)', html, re.IGNORECASE)
+                        if meta_match:
+                            resolved_url = meta_match.group(1)
+                except Exception:
+                    resolved_url = mapy_url
 
-B]\ÛÛYJÉÜÝXØÙ\ÜÉÎY_JBÈOOOOOOOOOOOOOOOOOOOHÕUHSTÈOOOOOOOOOOOOOOOOOOOBYXØ[Ý[]WÝ\ÜÝ]\Ê\ÚY
-NÝÜÈH\ÝÜ]Y\K[\ØJ\ÚY]\ÚY
-KÜ\ØJ\ÝÜÜÚ][ÛK[
+        parsed = urllib.parse.urlparse(resolved_url)
+        params = urllib.parse.parse_qs(parsed.query)
 
-BÜH[[ÙJ[ÝÜÊJNYH[ÝÜÊHHNÝ]WÜ\Ý[HØ[Ý[]WÜÝ]WØ]ÙY[ÝÜÖÚWKÝÜÖÚH
-ÈWJBYÝ]WÜ\Ý[ÝÜÖÚWKÝ]WÝ×Û^HÛÛ[\ÊÝ]WÜ\Ý[Ù]
-	ÙÙ[ÛY]IÊJBÝÜÖÚWK\Ý[ÙWÝ×Û^ÚÛHHÝ]WÜ\Ý[Ù]
-	Ù\Ý[ÙWÚÛIÊBÝÜÖÚWK\][ÛÝ×Û^ÛZ[HÝ]WÜ\Ý[Ù]
-	Ù\][ÛÛZ[ÊB[ÙNÝÜÖÚWKÝ]WÝ×Û^HÛBÝÜÖÚWK\Ý[ÙWÝ×Û^ÚÛHHÛBÝÜÖÚWK\][ÛÝ×Û^ÛZ[HÛB[ÙNÝÜÖÚWKÝ]WÝ×Û^HÛBÝÜÖÚWK\Ý[ÙWÝ×Û^ÚÛHHÛBÝÜÖÚWK\][ÛÝ×Û^ÛZ[HÛBÙ\ÜÚ[ÛÛÛ[Z]
+        start_lat = None
+        start_lng = None
+        end_lat = None
+        end_lng = None
 
-BYØ[Ý[]WÜÝ]WØ]ÙY[ÝÜØKÝÜØNN\WÚÙ^HH\ÛÛYËÙ]
-	ÓPTWÐTWÒÑVIË	ÉÊBÝ]WÝ\HHÝÜØKÝ]WÝ\HÜ	ØØ\ÂYÝ]WÝ\HOH	ÜXX×Ý[ÜÜ	ÎÝ]WÝ\HH	ØØ\ÂÝ]WØ\WÝ\H
-ÎËØ\KX\KÞÝKÜÝ][ËÜÝ]HØ\ZÙ^OH
-È\WÚÙ^H
-Â[ÏYHÝ\H
-ÈÝÝÜØKÊH
-È
-ÈÝÝÜØK]
-H
-Â[H
-ÈÝÝÜØÊH
-È
-ÈÝÝÜØ]
-H
-ÂÝ]U\OH
-ÈÝ]WÝ\B
-B\HH\X\]Y\Ý\]Y\Ý
-Ý]WØ\WÝ\
-B\KYÚXY\	Õ\Ù\PYÙ[	Ë	ÒZÙS][ÌK	ÊB\KYÚXY\	ÐXØÙ\	Ë	Ø\XØ][ÛÚÛÛÊB\ÜH\X\]Y\Ý\Ü[\K[Y[Ý]LMJBÝ]WÙ]HHÛÛØYÊ\ÜXY
+        rc_values = params.get('rc', [])
+        if rc_values and rc_values[0]:
+            try:
+                waypoints = decode_mapy_rc(rc_values[0])
+                if len(waypoints) >= 1:
+                    start_lat = waypoints[0]['lat']
+                    start_lng = waypoints[0]['lng']
+                if len(waypoints) >= 2:
+                    end_lat = waypoints[-1]['lat']
+                    end_lng = waypoints[-1]['lng']
+            except Exception:
+                pass
 
-KXÛÙJ	Ý]N	ÊJB\Ý[ÙWÛHHÝ]WÙ]KÙ]
-	Û[Ý	Ë
-B\][ÛÜÈHÝ]WÙ]KÙ]
-	Ù\][ÛË
-BÙ[×ÙX]\HHÝ]WÙ]KÙ]
-	ÙÙ[ÛY]IËßJBY\Ú[Ý[ÙJÙ[×ÙX]\KXÝ
-H[	ÙÙ[ÛY]IÈ[Ù[×ÙX]\NÙ[ÛY]HHÙ[×ÙX]\VÉÙÙ[ÛY]I×B[ÙNÙ[ÛY]HHÙ[×ÙX]\B]\Â	ÙÙ[ÛY]IÎÙ[ÛY]K	Ù\Ý[ÙWÚÛIÎÝ[
-\Ý[ÙWÛHÈLJHY\Ý[ÙWÛHL[ÙHÝ[
-\Ý[ÙWÛKJK	Ù\][ÛÛZ[Î[
-\][ÛÜÈÈ
-
-HY\][ÛÜÈL[ÙH[
-\][ÛÜÊKB^Ù\^Ù\[Û]\ÛBÈOOOOOOOOOOOOOOOOOOOHPTHÕUHTHOOOOOOOOOOOOOOOOOOOBYXÛÙWÛX\WÜÊ×ÜÝ[ÊNSPUH	ÌPÑQÒ
-RÓSÔTÕUÖVLXXÙÙYÚ
-ZZÛ[ÛÜ\Ý]]Þ^ÂUWÐÒTÈH
-QWÐÒTÈHH
-Y\ÙWÛ[X\\ÛÝ[
-N\Ý[HHHÛÝ[Ú[HHYÝ\Z\ÙH[YQ\ÜÈ]HBÚH\Ü
+        if not start_lat and 'x' in params and 'y' in params:
+            center_lng = float(params['x'][0])
+            center_lat = float(params['y'][0])
+            start_lat = center_lat
+            start_lng = center_lng
 
-B[^HSPU[
-Ú
-BY[^OHLNÛÛ[YB\Ý[H
-\Ý[
-H
-È[^HOHB]\\Ý[\Ý[ÈH×BÛÛÜÈHÌBÛÛÜÚ[^H\H\Ý
-]\ÙY
-×ÜÝ[ËÝ\
+        dim_value = params.get('dim', [None])[0]
+        if not start_lat and dim_value:
+            return jsonify({
+                'resolved_url': resolved_url,
+                'error': 'Dieser Link zeigt einen Wanderpfad (kein Routenplan). So funktioniert es: 1) Oeffne den Pfad auf mapy.com 2) Klicke oben rechts auf Route 3) Plane eine Route entlang des Pfads 4) Kopiere die neue URL und fuege sie hier ein.'
+            }), 400
 
-JJBÚ[H\[HH\ÙWÛ[X\\JBY
-[H	UWÐÒTÊHOHUWÐÒTÎ[HOHUWÐÒTÂ[HH
+        if not start_lat or not start_lng:
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.', 'resolved_url': resolved_url}), 400
 
-[H	MJH
-H
-È\ÙWÛ[X\\
-BÛÛÜÖØÛÛÜÚ[^HH[B[Y
-[H	QWÐÒTÊHOHQWÐÒTÎ[HH
+        if not end_lat or not end_lng:
+            return jsonify({
+                'start_lat': round(start_lat, 6),
+                'start_lng': round(start_lng, 6),
+                'resolved_url': resolved_url,
+                'error': 'Nur Startpunkt gefunden. Bitte gib den Endpunkt manuell ein.'
+            }), 400
 
-[H	MJHLH
-È\ÙWÛ[X\\B[HOHHMBÛÛÜÖØÛÛÜÚ[^H
-ÏH[B[ÙN[HH
+        api_key = app.config.get('MAPY_API_KEY', '')
+        route_api_url = (
+            "https://api.mapy.cz/v1/routing/route"
+            "?apikey=" + api_key +
+            "&lang=de"
+            "&start=" + str(start_lng) + "," + str(start_lat) +
+            "&end=" + str(end_lng) + "," + str(end_lat) +
+            "&routeType=foot_hiking"
+        )
+        req = urllib.request.Request(route_api_url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0')
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        route_data = json.loads(resp.read().decode('utf-8'))
 
-[H	ÌJH
-H
-È\ÙWÛ[X\\JB[HOHHLÛÛÜÖØÛÛÜÚ[^H
-ÏH[BYÛÛÜÚ[^ÈHÛÛÜÖÌH
-ÍÈ
-H
-HHN]HÛÛÜÖÌWH
-NÈ
-H
-HHL\Ý[Ë\[
-ÉÛ]	ÎÝ[
-]
-K	ÛÉÎÝ[
-Ë
-_JBÛÛÜÚ[^H
-ÛÛÜÚ[^
-ÈJH	H]\\Ý[Â\Ý]J	ËØ\KÙ]Ú[X\K\Ý]IËY]ÙÏVÉÔÔÕ	×JBY]ÚÛX\WÜÝ]J
-N]HH\]Y\ÝÙ]ÚÛÛ
-BX\WÝ\H]KÙ]
-	Ý\	Ë	ÉÊBN\ÛÛYÝ\HX\WÝ\Y	ËÜËÉÈ[X\WÝ\N\HH\X\]Y\Ý\]Y\Ý
-X\WÝ\Y]ÙIÒPQ	ÊB\KYÚXY\	Õ\Ù\PYÙ[	Ë	Ó[Þ[KÍK
-Ú[ÝÜÈLÈÚ[È
-
-H\UÙXÚ]ÍLÍËÍ
-ÒSZÙHÙXÚÛÊHÚÛYKÌLØY\KÍLÍËÍÊB\KYÚXY\	ÐXØÙ\	Ë	Ý^Ú[	ÊB\ÜÛÙHH\X\]Y\Ý\Ü[\K[Y[Ý]LL
-B\ÛÛYÝ\H\ÜÛÙK\^Ù\^Ù\[ÛN\HH\X\]Y\Ý\]Y\Ý
-X\WÝ\
-B\KYÚXY\	Õ\Ù\PYÙ[	Ë	Ó[Þ[KÍK
-Ú[ÝÜÈLÈÚ[È
-
-H\UÙXÚ]ÍLÍËÍ
-ÒSZÙHÙXÚÛÊHÚÛYKÌLØY\KÍLÍËÍÊB\KYÚXY\	ÐXØÙ\	Ë	Ý^Ú[	ÊB\ÜÛÙHH\X\]Y\Ý\Ü[\K[Y[Ý]LL
-B\ÛÛYÝ\H\ÜÛÙK\Y\ÛÛYÝ\OHX\WÝ\Ü	ËÜËÉÈ[\ÛÛYÝ\[\ÜB[H\ÜÛÙKXY
+        distance_m = route_data.get('length', 0)
+        duration_s = route_data.get('duration', 0)
+        geo_feature = route_data.get('geometry', {})
+        if isinstance(geo_feature, dict) and 'geometry' in geo_feature:
+            geometry = geo_feature['geometry']
+        else:
+            geometry = geo_feature
 
-KXÛÙJ	Ý]N	Ë\ÜÏIÚYÛÜIÊBY]WÛX]ÚHKÙX\Ú
-Ý\J×	Ï×JÊIË[KQÓÔPÐTÑJBYY]WÛX]Ú\ÛÛYÝ\HY]WÛX]ÚÜÝ\
-JB^Ù\^Ù\[Û\ÛÛYÝ\HX\WÝ\\ÙYH\X\ÙK\\ÙJ\ÛÛYÝ\
-B\[\ÈH\X\ÙK\ÙWÜ\Ê\ÙY]Y\JBÝ\Û]HÛBÝ\ÛÈHÛB[Û]HÛB[ÛÈHÛB×Ý[Y\ÈH\[\ËÙ]
-	ÜÉË×JBY×Ý[Y\È[×Ý[Y\ÖÌNNØ^\Ú[ÈHXÛÙWÛX\WÜÊ×Ý[Y\ÖÌJBY[Ø^\Ú[ÊHHNÝ\Û]HØ^\Ú[ÖÌVÉÛ]	×BÝ\ÛÈHØ^\Ú[ÖÌVÉÛÉ×BY[Ø^\Ú[ÊHH[Û]HØ^\Ú[ÖËLWVÉÛ]	×B[ÛÈHØ^\Ú[ÖËLWVÉÛÉ×B^Ù\^Ù\[Û\ÜÂYÝÝ\Û][	Þ	È[\[\È[	ÞIÈ[\[\ÎÙ[\ÛÈHØ]
-\[\ÖÉÞ	×VÌJBÙ[\Û]HØ]
-\[\ÖÉÞI×VÌJBÝ\Û]HÙ[\Û]Ý\ÛÈHÙ[\ÛÂ[WÝ[YHH\[\ËÙ]
-	Ù[IËÓÛWJVÌBYÝÝ\Û][[WÝ[YN]\ÛÛYJÂ	Ü\ÛÛYÝ\	Î\ÛÛYÝ\	Ù\ÜÎ	ÑY\Ù\[ÈZYÝZ[[Ø[\Y
-ÙZ[Ý][[KÛÈ[Ý[ÛY\\ÎJHÙYH[Y]YX\KÛÛHHÛXÚÙHØ[XÚÈ]YÝ]HÊH[HZ[HÝ]H[[È\ÈYÈ
-HÛÜY\HYH]YHT[YYÙHÚYHY\Z[ÂJK
-YÝÝ\Û]ÜÝÝ\ÛÎ]\ÛÛYJÉÙ\ÜÎ	ÒÛÛHÙZ[HÛÛÜ[][]\È[H[È^ZY\[]H\Ù[HZ[HÛHX\KÛÛHÝ]KUTË	Ü\ÛÛYÝ\	Î\ÛÛYÝ\JK
-YÝ[Û]ÜÝ[ÛÎ]\ÛÛYJÂ	ÜÝ\Û]	ÎÝ[
-Ý\Û]
-K	ÜÝ\ÛÉÎÝ[
-Ý\ÛË
-K	Ü\ÛÛYÝ\	Î\ÛÛYÝ\	Ù\ÜÎ	Ó\Ý\[ÝÙY[[]HÚX[[[ÝX[Y[Z[ÂJK
-\WÚÙ^HH\ÛÛYËÙ]
-	ÓPTWÐTWÒÑVIË	ÉÊBÝ]WØ\WÝ\H
-ÎËØ\KX\KÞÝKÜÝ][ËÜÝ]HØ\ZÙ^OH
-È\WÚÙ^H
-Â[ÏYHÝ\H
-ÈÝÝ\ÛÊH
-È
-ÈÝÝ\Û]
-H
-Â[H
-ÈÝ[ÛÊH
-È
-ÈÝ[Û]
-H
-ÂÝ]U\OYÛÝÚZÚ[È
-B\HH\X\]Y\Ý\]Y\Ý
-Ý]WØ\WÝ\
-B\KYÚXY\	Õ\Ù\PYÙ[	Ë	ÒZÙS][ÌK	ÊB\KYÚXY\	ÐXØÙ\	Ë	Ø\XØ][ÛÚÛÛÊB\ÜH\X\]Y\Ý\Ü[\K[Y[Ý]LMJBÝ]WÙ]HHÛÛØYÊ\ÜXY
+        elevation_gain = 0
+        elevation_loss = 0
+        try:
+            route_coords = []
+            if isinstance(geometry, dict) and geometry.get('type') == 'LineString':
+                route_coords = geometry.get('coordinates', [])
+            if route_coords:
+                max_points = 256
+                if len(route_coords) > max_points:
+                    step = len(route_coords) / max_points
+                    sampled = [route_coords[int(i * step)] for i in range(max_points)]
+                else:
+                    sampled = route_coords
+                positions = ';'.join(
+                    '{},{}'.format(round(c[0], 6), round(c[1], 6))
+                    for c in sampled
+                )
+                elev_url = (
+                    'https://api.mapy.cz/v1/elevation'
+                    '?apikey=' + api_key +
+                    '&positions=' + positions
+                )
+                elev_req = urllib.request.Request(elev_url)
+                elev_req.add_header('User-Agent', 'HikeNTravel/1.0')
+                elev_req.add_header('Accept', 'application/json')
+                elev_resp = urllib.request.urlopen(elev_req, timeout=15)
+                elev_data = json.loads(elev_resp.read().decode('utf-8'))
+                elevations = [item['elevation'] for item in elev_data.get('items', [])]
+                if len(elevations) > 1:
+                    for i in range(1, len(elevations)):
+                        diff = elevations[i] - elevations[i - 1]
+                        if diff > 0:
+                            elevation_gain += diff
+                        else:
+                            elevation_loss += abs(diff)
+                elevation_gain = int(round(elevation_gain))
+                elevation_loss = int(round(elevation_loss))
+        except Exception:
+            pass
 
-KXÛÙJ	Ý]N	ÊJB\Ý[ÙWÛHHÝ]WÙ]KÙ]
-	Û[Ý	Ë
-B\][ÛÜÈHÝ]WÙ]KÙ]
-	Ù\][ÛË
-BÙ[×ÙX]\HHÝ]WÙ]KÙ]
-	ÙÙ[ÛY]IËßJBY\Ú[Ý[ÙJÙ[×ÙX]\KXÝ
-H[	ÙÙ[ÛY]IÈ[Ù[×ÙX]\NÙ[ÛY]HHÙ[×ÙX]\VÉÙÙ[ÛY]I×B[ÙNÙ[ÛY]HHÙ[×ÙX]\B[]][ÛÙØZ[H[]][ÛÛÜÜÈHNÝ]WØÛÛÜÈH×BY\Ú[Ý[ÙJÙ[ÛY]KXÝ
-H[Ù[ÛY]KÙ]
-	Ý\IÊHOH	Ó[TÝ[ÉÎÝ]WØÛÛÜÈHÙ[ÛY]KÙ]
-	ØÛÛÜ[]\ÉË×JBYÝ]WØÛÛÜÎX^ÜÚ[ÈHMY[Ý]WØÛÛÜÊHX^ÜÚ[ÎÝ\H[Ý]WØÛÛÜÊHÈX^ÜÚ[ÂØ[\YHÜÝ]WØÛÛÜÖÚ[
-H
-Ý\
-WHÜH[[ÙJX^ÜÚ[ÊWB[ÙNØ[\YHÝ]WØÛÛÜÂÜÚ][ÛÈH	ÎÉËÚ[	ÞßKßIËÜX]
-Ý[
-ÖÌK
-KÝ[
-ÖÌWK
-JBÜÈ[Ø[\Y
-B[]Ý\H
-	ÚÎËØ\KX\KÞÝKÙ[]][ÛÂ	ÏØ\ZÙ^OIÈ
-È\WÚÙ^H
-Â	ÉÜÚ][ÛÏIÈ
-ÈÜÚ][ÛÂ
-B[]Ü\HH\X\]Y\Ý\]Y\Ý
-[]Ý\
-B[]Ü\KYÚXY\	Õ\Ù\PYÙ[	Ë	ÒZÙS][ÌK	ÊB[]Ü\KYÚXY\	ÐXØÙ\	Ë	Ø\XØ][ÛÚÛÛÊB[]Ü\ÜH\X\]Y\Ý\Ü[[]Ü\K[Y[Ý]LMJB[]Ù]HHÛÛØYÊ[]Ü\ÜXY
+        distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
+        duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
 
-KXÛÙJ	Ý]N	ÊJB[]][ÛÈHÚ][VÉÙ[]][Û×HÜ][H[[]Ù]KÙ]
-	Ú][\ÉË×JWBY[[]][ÛÊHNÜH[[ÙJK[[]][ÛÊJNYH[]][ÛÖÚWHH[]][ÛÖÚHHWBYY[]][ÛÙØZ[
-ÏHY[ÙN[]][ÛÛÜÜÈ
-ÏHXÊYB[]][ÛÙØZ[H[
-Ý[
-[]][ÛÙØZ[JB[]][ÛÛÜÜÈH[
-Ý[
-[]][ÛÛÜÜÊJB^Ù\^Ù\[Û\ÜÂ\Ý[ÙWÚÛHHÝ[
-\Ý[ÙWÛHÈLJHY\Ý[ÙWÛHL[ÙHÝ[
-\Ý[ÙWÛKJB\][ÛÛZ[]\ÈH[
-\][ÛÜÈÈ
-
-HY\][ÛÜÈL[ÙH[
-\][ÛÜÊB]\ÛÛYJÂ	Ù\Ý[ÙWÚÛIÎ\Ý[ÙWÚÛK	Ù\][ÛÛZ[]\ÉÎ\][ÛÛZ[]\Ë	Ù[]][ÛÙØZ[Î[]][ÛÙØZ[	Ù[]][ÛÛÜÜÉÎ[]][ÛÛÜÜË	ÜÝ\Û]	ÎÝ[
-Ý\Û]
-K	ÜÝ\ÛÉÎÝ[
-Ý\ÛË
-K	Ù[Û]	ÎÝ[
-[Û]
-K	Ù[ÛÉÎÝ[
-[ÛË
-K	ÜÝ]WÙÙ[ÛY]IÎÛÛ[\ÊÙ[ÛY]JK	Ü\ÛÛYÝ\	Î\ÛÛYÝ\JB^Ù\^Ù\[Û\ÈN]\ÛÛYJÉÙ\ÜÎ	ÑZ\	È
-ÈÝJ_JK
-LY×Û[YW×ÈOH	××ÛXZ[×ÉÎ\[XYÏUYJB
+        return jsonify({
+            'distance_km': distance_km,
+            'duration_minutes': duration_minutes,
+            'elevation_gain': elevation_gain,
+            'elevation_loss': elevation_loss,
+            'start_lat': round(start_lat, 6),
+            'start_lng': round(start_lng, 6),
+            'end_lat': round(end_lat, 6),
+            'end_lng': round(end_lng, 6),
+            'route_geometry': json.dumps(geometry),
+            'resolved_url': resolved_url
+        })
+
+    except Exception as e:
+        return jsonify({'error': 'Fehler: ' + str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
