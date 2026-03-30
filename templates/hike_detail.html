@@ -143,27 +143,32 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+function initDetailMap(retries) {
     const mapCoords = {{ map_coords|safe }};
-    
+
     if (!window.SMap) {
-        document.getElementById('map').innerHTML = '<p style="padding: 20px;">Karte wird geladen...</p>';
+        retries = (retries || 0);
+        if (retries < 20) {
+            setTimeout(function() { initDetailMap(retries + 1); }, 500);
+        } else {
+            document.getElementById('map').innerHTML = '<p style="padding: 20px; color:#A0E0D0;">Karte konnte nicht geladen werden. Bitte Seite neu laden.</p>';
+        }
         return;
     }
-    
+
     const mapDiv = document.getElementById('map');
     const map = new SMap(mapDiv);
     map.setCenterZoom(SMap.Coords.fromWGS84(mapCoords.start.lng, mapCoords.start.lat), 13);
     map.addDefaultLayer(SMap.DEF_TURIST).enable();
     map.addDefaultControls();
-    
+
     // Draw route if geometry exists
     if (mapCoords.route_geometry && mapCoords.route_geometry.coordinates) {
         const coords = mapCoords.route_geometry.coordinates;
-        
+
         const geoLayer = new SMap.Layer.Geometry();
         map.addLayer(geoLayer).enable();
-        
+
         const points = coords.map(function(c) { return SMap.Coords.fromWGS84(c[0], c[1]); });
         var polyline = new SMap.Geometry(SMap.GEOMETRY_POLYLINE, null, points, {
             color: '#3DB88C',
@@ -171,23 +176,23 @@ document.addEventListener('DOMContentLoaded', function() {
             opacity: 0.9
         });
         geoLayer.addGeometry(polyline);
-        
+
         // Fit map to route
         var cz = map.computeCenterZoom(points);
         map.setCenterZoom(cz[0], cz[1]);
     }
-    
+
     // Add markers
     var markerLayer = new SMap.Layer.Marker();
     map.addLayer(markerLayer).enable();
-    
+
     var startMarker = new SMap.Marker(
         SMap.Coords.fromWGS84(mapCoords.start.lng, mapCoords.start.lat),
         'Start',
         { title: 'Start' }
     );
     markerLayer.addMarker(startMarker);
-    
+
     if (mapCoords.end) {
         var endMarker = new SMap.Marker(
             SMap.Coords.fromWGS84(mapCoords.end.lng, mapCoords.end.lat),
@@ -196,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
         );
         markerLayer.addMarker(endMarker);
     }
-});
+}
+document.addEventListener('DOMContentLoaded', function() { initDetailMap(0); });
 </script>
 {% endblock %}
