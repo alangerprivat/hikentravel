@@ -83,63 +83,24 @@ function showStatus(msg, type) {
     div.textContent = msg;
 }
 
-function showRoutePreview(geometry, retries) {
+function showRoutePreview(geometry) {
     const div = document.getElementById('routePreview');
-    if (!geometry || !geometry.coordinates) return;
-
-    // Wait for SMap to load (async loader)
-    if (!window.SMap) {
-        retries = (retries || 0);
-        if (retries < 20) {
-            setTimeout(function() { showRoutePreview(geometry, retries + 1); }, 500);
-        } else {
-            div.innerHTML = '<p style="padding:20px; color:#A0E0D0;">Karte konnte nicht geladen werden. Bitte Seite neu laden.</p>';
-        }
-        return;
-    }
+    if (!geometry || !geometry.coordinates || !window.L) return;
 
     div.innerHTML = '';
     const coords = geometry.coordinates;
-    const center = coords[Math.floor(coords.length / 2)];
+    const latLngs = coords.map(c => [c[1], c[0]]);
 
-    const map = new SMap(div);
-    map.setCenterZoom(SMap.Coords.fromWGS84(center[0], center[1]), 13);
-    map.addDefaultLayer(SMap.DEF_TURIST).enable();
-    map.addDefaultControls();
+    const map = L.map(div);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-    // Draw route polyline
-    const layer = new SMap.Layer.Geometry();
-    map.addLayer(layer).enable();
+    const polyline = L.polyline(latLngs, { color: '#3DB88C', weight: 4, opacity: 0.9 }).addTo(map);
+    map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
 
-    const points = coords.map(c => SMap.Coords.fromWGS84(c[0], c[1]));
-    const polyline = new SMap.Geometry(SMap.GEOMETRY_POLYLINE, null, points, {
-        color: '#3DB88C',
-        width: 4,
-        opacity: 0.9
-    });
-    layer.addGeometry(polyline);
-
-    // Add start/end markers
-    const markerLayer = new SMap.Layer.Marker();
-    map.addLayer(markerLayer).enable();
-
-    const startMarker = new SMap.Marker(
-        SMap.Coords.fromWGS84(coords[0][0], coords[0][1]),
-        'Start',
-        { title: 'Start' }
-    );
-    markerLayer.addMarker(startMarker);
-
-    const endMarker = new SMap.Marker(
-        SMap.Coords.fromWGS84(coords[coords.length-1][0], coords[coords.length-1][1]),
-        'Ziel',
-        { title: 'Ziel' }
-    );
-    markerLayer.addMarker(endMarker);
-
-    // Fit map to route
-    const cz = map.computeCenterZoom(points);
-    map.setCenterZoom(cz[0], cz[1]);
+    L.marker(latLngs[0]).addTo(map).bindPopup('Start');
+    L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup('Ziel');
 }
 </script>
 {% endblock %}
