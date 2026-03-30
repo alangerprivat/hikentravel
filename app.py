@@ -50,7 +50,7 @@ class Category(db.Model):
     __tablename__ = 'category'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    icon = db.Column(db.String(50), default='🏔️')
+    icon = db.Column(db.String(50), default='ðï¸')
     color = db.Column(db.String(7), default='#3DB88C')
     hikes = db.relationship('Hike', backref='category', lazy=True, cascade='all, delete-orphan')
 
@@ -88,7 +88,7 @@ class Hike(db.Model):
         return []
 
     def get_difficulty_stars(self):
-        return '🏔️' * self.difficulty
+        return 'ðï¸' * self.difficulty
 
     def get_duration_display(self):
         hours = self.duration_minutes // 60
@@ -119,10 +119,10 @@ def init_sample_categories():
     """Initialize sample categories"""
     if Category.query.count() == 0:
         categories = [
-            Category(name='Berg', icon='⛰️', color='#3DB88C'),
-            Category(name='Wald', icon='🌲', color='#2D5A40'),
-            Category(name='See', icon='💧', color='#1A8FA3'),
-            Category(name='Gebirge', icon='🏔️', color='#8B4513'),
+            Category(name='Berg', icon='â°ï¸', color='#3DB88C'),
+            Category(name='Wald', icon='ð²', color='#2D5A40'),
+            Category(name='See', icon='ð§', color='#1A8FA3'),
+            Category(name='Gebirge', icon='ðï¸', color='#8B4513'),
         ]
         for cat in categories:
             db.session.add(cat)
@@ -384,13 +384,63 @@ def get_map_data():
 
 
 
+def decode_mapy_rc(rc_string):
+    """Decode Mapy.com rc parameter to extract waypoint coordinates.
+    Uses the same algorithm as SMap.Coords.stringToCoords."""
+    ALPHABET = '0ABCD2EFGH4IJKLMN6OPQRST8UVWXYZ-1abcd3efgh5ijklmn7opqrst9uvwxyz.'
+    FIVE_CHARS = 1 + (2 << 4)  # 33
+    THREE_CHARS = 1 << 5  # 32
+
+    def parse_number(arr, count):
+        result = 0
+        i = count
+        while i > 0:
+            if not arr:
+                raise ValueError("No data")
+            ch = arr.pop()
+            index = ALPHABET.find(ch)
+            if index == -1:
+                continue
+            result = (result << 6) + index
+            i -= 1
+        return result
+
+    results = []
+    coords = [0, 0]
+    coord_index = 0
+    arr = list(reversed(rc_string.strip()))
+
+    while arr:
+        num = parse_number(arr, 1)
+        if (num & FIVE_CHARS) == FIVE_CHARS:
+            num -= FIVE_CHARS
+            num = ((num & 15) << 24) + parse_number(arr, 4)
+            coords[coord_index] = num
+        elif (num & THREE_CHARS) == THREE_CHARS:
+            num = ((num & 15) << 12) + parse_number(arr, 2)
+            num -= 1 << 15
+            coords[coord_index] += num
+        else:
+            num = ((num & 31) << 6) + parse_number(arr, 1)
+            num -= 1 << 10
+            coords[coord_index] += num
+
+        if coord_index:
+            lng = coords[0] * 360 / (1 << 28) - 180
+            lat = coords[1] * 180 / (1 << 28) - 90
+            results.append({'lat': round(lat, 6), 'lng': round(lng, 6)})
+
+        coord_index = (coord_index + 1) % 2
+
+    return results
+
+
 @app.route('/api/fetch-mapy-route', methods=['POST'])
 def fetch_mapy_route():
     """Fetch route data from Mapy.com URL"""
-    import re
     data = request.get_json()
     mapy_url = data.get('url', '')
-    
+
     try:
         # Step 1: Resolve short links
         resolved_url = mapy_url
@@ -402,65 +452,40 @@ def fetch_mapy_route():
                 resolved_url = response.url
             except Exception:
                 resolved_url = mapy_url
-        
+
         # Step 2: Parse URL parameters
         parsed = urllib.parse.urlparse(resolved_url)
         params = urllib.parse.parse_qs(parsed.query)
-        
+
         start_lat = None
         start_lng = None
         end_lat = None
         end_lng = None
-        
-        # Method 1: Look for OSM node IDs in 'ri' params and resolve via Nominatim
-        ri_values = params.get('ri', [])
-        rs_values = params.get('rs', [])
-        osm_nodes = []
-        for i, ri in enumerate(ri_values):
-            if ri and ri.strip():
-                source = rs_values[i] if i < len(rs_values) else 'osm'
-                if source == 'osm':
-                    osm_nodes.append(ri.strip())
-        
-        if len(osm_nodes) >= 2:
-            # Resolve OSM node IDs to coordinates via Nominatim
-            osm_ids = ','.join(['N' + n for n in osm_nodes])
-            nom_url = f"https://nominatim.openstreetmap.org/lookup?osm_ids={osm_ids}&format=json"
-            nom_req = urllib.request.Request(nom_url)
-            nom_req.add_header('User-Agent', 'HikeNTravel/1.0')
-            nom_resp = urllib.request.urlopen(nom_req, timeout=10)
-            nom_data = json.loads(nom_resp.read().decode('utf-8'))
-            
-            if len(nom_data) >= 2:
-                start_lat = float(nom_data[0]['lat'])
-                start_lng = float(nom_data[0]['lon'])
-                end_lat = float(nom_data[-1]['lat'])
-                end_lng = float(nom_data[-1]['lon'])
-        
+
+        # Method 1: Decode rc parameter (contains encoded waypoint coordinates)
+        rc_values = params.get('rc', [])
+        if rc_values and rc_values[0]:
+            try:
+                waypoints = decode_mapy_rc(rc_values[0])
+                if len(waypoints) >= 1:
+                    start_lat = waypoints[0]['lat']
+                    start_lng = waypoints[0]['lng']
+                if len(waypoints) >= 2:
+                    end_lat = waypoints[-1]['lat']
+                    end_lng = waypoints[-1]['lng']
+            except Exception:
+                pass
+
         # Method 2: Fallback to x/y params (map center)
         if not start_lat and 'x' in params and 'y' in params:
             center_lng = float(params['x'][0])
             center_lat = float(params['y'][0])
-            # Use map center as start point
             start_lat = center_lat
             start_lng = center_lng
-        
-        # Method 3: Try 'start'/'end' params (for future compatibility)
-        if not start_lat and 'start' in params:
-            parts = params['start'][0].split(',')
-            if len(parts) == 2:
-                start_lat = float(parts[0])
-                start_lng = float(parts[1])
-        if not end_lat and 'end' in params:
-            parts = params['end'][0].split(',')
-            if len(parts) == 2:
-                end_lat = float(parts[0])
-                end_lng = float(parts[1])
-        
+
         if not start_lat or not start_lng:
-            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL (nicht Short-Links).'}), 400
-        
-        # If we only have start but no end, return just the start coordinates
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.'}), 400
+
         if not end_lat or not end_lng:
             return jsonify({
                 'start_lat': round(start_lat, 6),
@@ -468,46 +493,35 @@ def fetch_mapy_route():
                 'resolved_url': resolved_url,
                 'error': 'Nur Startpunkt gefunden. Bitte gib den Endpunkt manuell ein.'
             }), 400
-        
+
         # Step 3: Call Mapy.com Routing API
         api_key = app.config.get('MAPY_API_KEY', '')
-        waypoints = f"{start_lat},{start_lng}|{end_lat},{end_lng}"
-        route_api = f"https://api.mapy.cz/v1/routing/route?apikey={api_key}&lang=de&start={start_lat},{start_lng}&end={end_lat},{end_lng}&routeType=foot_hiking"
-        
-        req = urllib.request.Request(route_api)
+        route_api_url = (
+            "https://api.mapy.cz/v1/routing/route"
+            "?apikey=" + api_key +
+            "&lang=de"
+            "&start=" + str(start_lng) + "," + str(start_lat) +
+            "&end=" + str(end_lng) + "," + str(end_lat) +
+            "&routeType=foot_hiking"
+        )
+
+        req = urllib.request.Request(route_api_url)
         req.add_header('User-Agent', 'HikeNTravel/1.0')
         req.add_header('Accept', 'application/json')
         resp = urllib.request.urlopen(req, timeout=15)
         route_data = json.loads(resp.read().decode('utf-8'))
-        
-        # Extract route info
+
         geometry = route_data.get('geometry', {})
         properties = route_data.get('properties', {})
-        
-        distance_m = 0
-        duration_s = 0
-        elevation_gain = 0
-        elevation_loss = 0
-        
-        # Try different response structures
-        if 'length' in properties:
-            distance_m = properties['length']
-        elif 'distance' in properties:
-            distance_m = properties['distance']
-            
-        if 'duration' in properties:
-            duration_s = properties['duration']
-        elif 'time' in properties:
-            duration_s = properties['time']
-        
-        if 'ascent' in properties:
-            elevation_gain = int(properties['ascent'])
-        if 'descent' in properties:
-            elevation_loss = int(properties['descent'])
-        
+
+        distance_m = properties.get('length', properties.get('distance', 0))
+        duration_s = properties.get('duration', properties.get('time', 0))
+        elevation_gain = int(properties.get('ascent', 0))
+        elevation_loss = int(properties.get('descent', 0))
+
         distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
         duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
-        
+
         return jsonify({
             'distance_km': distance_km,
             'duration_minutes': duration_minutes,
@@ -520,8 +534,8 @@ def fetch_mapy_route():
             'route_geometry': json.dumps(geometry),
             'resolved_url': resolved_url
         })
-        
+
     except Exception as e:
-        return jsonify({'error': f'Fehler: {str(e)}'}), 500
+        return jsonify({'error': 'Fehler: ' + str(e)}), 500
 if __name__ == '__main__':
     app.run(debug=True)
