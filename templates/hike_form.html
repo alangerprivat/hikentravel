@@ -1,6 +1,136 @@
 {% extends "base.html" %}
 
-{% block title %}{% if hike %}Wanderung bearbeiten{% else %}Neue Wanderung{% endif %} - Hike and Travel{% endblock %}
+{% block title %}{% if hike %}Wanderung bearbeiten{% else %}Neue Wanderung{% endif %} - Hike and Travel
+{% block extra_js %}
+<script>
+async function loadMapyRoute() {
+    const urlInput = document.getElementById('mapyUrl');
+    const statusDiv = document.getElementById('routeStatus');
+    const previewDiv = document.getElementById('routePreview');
+    const btn = document.getElementById('loadRouteBtn');
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+        showStatus('Bitte gib einen Mapy.com Link ein.', 'warning');
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Lade Route...';
+    showStatus('Route wird geladen...', 'info');
+    
+    try {
+        const response = await fetch('/api/fetch-mapy-route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            showStatus(data.error || 'Fehler beim Laden der Route', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-download"></i> Route laden';
+            return;
+        }
+        
+        // Auto-fill form fields
+        if (data.distance_km) setField('distance_km', data.distance_km);
+        if (data.duration_minutes) setField('duration_minutes', data.duration_minutes);
+        if (data.elevation_gain) setField('elevation_gain', data.elevation_gain);
+        if (data.elevation_loss) setField('elevation_loss', data.elevation_loss);
+        if (data.start_lat) setField('start_lat', data.start_lat);
+        if (data.start_lng) setField('start_lng', data.start_lng);
+        if (data.end_lat) setField('end_lat', data.end_lat);
+        if (data.end_lng) setField('end_lng', data.end_lng);
+        
+        // Store route geometry and URL
+        document.getElementById('routeGeometry').value = data.route_geometry || '';
+        document.getElementById('mapyUrlHidden').value = data.resolved_url || url;
+        
+        // Show route preview on map
+        if (data.route_geometry) {
+            previewDiv.style.display = 'block';
+            showRoutePreview(JSON.parse(data.route_geometry));
+        }
+        
+        showStatus(
+            'Route geladen! ' + data.distance_km + ' km, ' + 
+            Math.floor(data.duration_minutes/60) + 'h ' + (data.duration_minutes%60) + 'min, ' +
+            data.elevation_gain + 'm Aufstieg',
+            'success'
+        );
+        
+    } catch (err) {
+        showStatus('Netzwerkfehler: ' + err.message, 'danger');
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-download"></i> Route laden';
+}
+
+function setField(name, value) {
+    const el = document.querySelector('[name="' + name + '"]');
+    if (el) el.value = value;
+}
+
+function showStatus(msg, type) {
+    const div = document.getElementById('routeStatus');
+    div.style.display = 'block';
+    div.className = 'mt-2 alert alert-' + type;
+    div.textContent = msg;
+}
+
+function showRoutePreview(geometry) {
+    const div = document.getElementById('routePreview');
+    if (!geometry || !geometry.coordinates || !window.SMap) return;
+    
+    const coords = geometry.coordinates;
+    const center = coords[Math.floor(coords.length / 2)];
+    
+    const map = new SMap(div);
+    map.setCenterZoom(SMap.Coords.fromWGS84(center[0], center[1]), 13);
+    map.addDefaultLayer(SMap.DEF_TURIST).enable();
+    map.addDefaultControls();
+    
+    // Draw route polyline
+    const layer = new SMap.Layer.Geometry();
+    map.addLayer(layer).enable();
+    
+    const points = coords.map(c => SMap.Coords.fromWGS84(c[0], c[1]));
+    const polyline = new SMap.Geometry(SMap.GEOMETRY_POLYLINE, null, points, {
+        color: '#3DB88C',
+        width: 4,
+        opacity: 0.9
+    });
+    layer.addGeometry(polyline);
+    
+    // Add start/end markers
+    const markerLayer = new SMap.Layer.Marker();
+    map.addLayer(markerLayer).enable();
+    
+    const startMarker = new SMap.Marker(
+        SMap.Coords.fromWGS84(coords[0][0], coords[0][1]),
+        'Start',
+        { title: 'Start' }
+    );
+    markerLayer.addMarker(startMarker);
+    
+    const endMarker = new SMap.Marker(
+        SMap.Coords.fromWGS84(coords[coords.length-1][0], coords[coords.length-1][1]),
+        'Ziel',
+        { title: 'Ziel' }
+    );
+    markerLayer.addMarker(endMarker);
+    
+    // Fit map to route
+    const cz = map.computeCenterZoom(points);
+    map.setCenterZoom(cz[0], cz[1]);
+}
+</script>
+{% endblock %}
+{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -18,7 +148,33 @@
 
 <div class="row">
     <div class="col-lg-8">
-        <form method="POST" enctype="multipart/form-data">
+        
+<div class="card mb-4" style="border: 2px solid var(--color-copper);">
+    <div class="card-header" style="background: linear-gradient(135deg, var(--color-copper) 0%, #A07050 100%);">
+        <h5 class="mb-0">Route von Mapy.com importieren</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-8">
+                <label class="form-label">Mapy.com Link</label>
+                <input type="text" class="form-control" id="mapyUrl" 
+                    placeholder="z.B. https://mapy.cz/s/... oder volle Route-URL"
+                    value="{{ hike.mapy_url if hike and hike.mapy_url else '' }}">
+                <input type="hidden" name="mapy_url" id="mapyUrlHidden" value="{{ hike.mapy_url if hike and hike.mapy_url else '' }}">
+                <input type="hidden" name="route_geometry" id="routeGeometry" value="{{ hike.route_geometry if hike and hike.route_geometry else '' }}">
+            </div>
+            <div class="col-lg-4">
+                <button type="button" class="btn btn-primary w-100" id="loadRouteBtn" onclick="loadMapyRoute()">
+                    <i class="bi bi-cloud-download"></i> Route laden
+                </button>
+            </div>
+        </div>
+        <div id="routeStatus" class="mt-2" style="display:none;"></div>
+        <div id="routePreview" class="mt-3" style="display:none; height:300px; border-radius:8px; border:2px solid var(--color-green);"></div>
+    </div>
+</div>
+
+<form method="POST" enctype="multipart/form-data">
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Grundinformationen</h5>
