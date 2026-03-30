@@ -511,13 +511,20 @@ def fetch_mapy_route():
         resp = urllib.request.urlopen(req, timeout=15)
         route_data = json.loads(resp.read().decode('utf-8'))
 
-        geometry = route_data.get('geometry', {})
-        properties = route_data.get('properties', {})
+        # Mapy API v1 returns length/duration at top level, geometry as a Feature
+        distance_m = route_data.get('length', 0)
+        duration_s = route_data.get('duration', 0)
 
-        distance_m = properties.get('length', properties.get('distance', 0))
-        duration_s = properties.get('duration', properties.get('time', 0))
-        elevation_gain = int(properties.get('ascent', 0))
-        elevation_loss = int(properties.get('descent', 0))
+        # Extract geometry from the Feature wrapper
+        geo_feature = route_data.get('geometry', {})
+        if isinstance(geo_feature, dict) and 'geometry' in geo_feature:
+            geometry = geo_feature['geometry']
+        else:
+            geometry = geo_feature
+
+        # Elevation not available from routing API
+        elevation_gain = 0
+        elevation_loss = 0
 
         distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
         duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
