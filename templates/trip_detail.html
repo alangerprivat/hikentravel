@@ -13,6 +13,7 @@
     .stop-cat-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; }
     .add-stop-card { border: 2px dashed #2D3E4F; border-radius: 8px; padding: 16px; margin-top: 12px; }
     .add-stop-card:hover { border-color: var(--color-green); }
+    .search-result-item:hover { background-color: #1A3040 !important; }
 </style>
 {% endblock %}
 
@@ -54,10 +55,17 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">&#x1F5FA;&#xFE0F; Reisekarte</h5>
-                {% if current_user.is_authenticated and stops|length > 1 %}
-                <button class="btn btn-sm btn-secondary" onclick="recalculateRoutes()">
-                    <i class="bi bi-arrow-repeat"></i> Routen neu berechnen
-                </button>
+                {% if stops|length > 1 %}
+                <div class="btn-group btn-group-sm">
+                    <a id="googleMapsLink" href="#" target="_blank" class="btn btn-outline-light" title="Route in Google Maps oeffnen">
+                        <i class="bi bi-map"></i> Google Maps
+                    </a>
+                    {% if current_user.is_authenticated %}
+                    <button class="btn btn-secondary" onclick="recalculateRoutes()">
+                        <i class="bi bi-arrow-repeat"></i> Routen neu berechnen
+                    </button>
+                    {% endif %}
+                </div>
                 {% endif %}
             </div>
             <div class="card-body p-0">
@@ -106,11 +114,18 @@
                         {% endif %}
                     </div>
                     {% if stop.distance_to_next_km %}
+                    {% set next_stop = stops[loop.index] if loop.index < stops|length else none %}
                     <div class="route-line">
                         <div class="route-info">
                             {{ stop.get_route_type_icon() }}
                             {{ stop.distance_to_next_km }} km
                             {% if stop.duration_to_next_min %}| {{ stop.duration_to_next_min }} min{% endif %}
+                            {% if next_stop %}
+                            <a href="https://www.google.com/maps/dir/?api=1&origin={{ stop.lat }},{{ stop.lng }}&destination={{ next_stop.lat }},{{ next_stop.lng }}&travelmode=driving"
+                               target="_blank" class="ms-2 text-muted" title="In Google Maps oeffnen">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                     {% endif %}
@@ -120,6 +135,16 @@
                 {% if current_user.is_authenticated %}
                 <div class="add-stop-card mt-3" id="addStopForm">
                     <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Neuen Stop hinzufuegen</h6>
+                    <!-- Place Search -->
+                    <div class="mb-3 position-relative">
+                        <label for="placeSearch" class="form-label small"><i class="bi bi-search"></i> Ort suchen</label>
+                        <input type="text" class="form-control form-control-sm" id="placeSearch"
+                               placeholder="z.B. Innsbruck, Zugspitze, Gardasee..."
+                               autocomplete="off">
+                        <div id="searchResults" class="position-absolute w-100 bg-dark border border-secondary rounded-bottom shadow"
+                             style="display:none; z-index:1000; max-height:200px; overflow-y:auto;">
+                        </div>
+                    </div>
                     <div class="mb-2">
                         <label for="newStopName" class="form-label small">Name *</label>
                         <input type="text" class="form-control form-control-sm" id="newStopName"
@@ -182,7 +207,7 @@
                         <i class="bi bi-plus"></i> Stop hinzufuegen
                     </button>
                     <small class="text-muted d-block mt-2">
-                        <i class="bi bi-info-circle"></i> Tipp: Klicke auf die Karte um Koordinaten auszuwaehlen
+                        <i class="bi bi-info-circle"></i> Tipp: Klicke auf die Karte oder nutze die Ortsuche oben
                     </small>
                 </div>
                 {% endif %}
@@ -238,6 +263,68 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     renderStopsOnMap();
+    updateGoogleMapsLink();
+
+    // Place search with debounce
+    const searchInput = document.getElementById('placeSearch');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout = null;
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const q = this.value.trim();
+            if (q.length < 2) { searchResults.style.display = 'none'; return; }
+            searchTimeout = setTimeout(() => {
+                fetch('/api/geocode?q=' + encodeURIComponent(q))
+                    .then(r => r.json())
+                    .then(results => {
+                        if (results.length === 0) {
+                            searchResults.innerHTML = '<div class="px-3 py-2 text-muted small">Keine Ergebnisse</div>';
+                        } else {
+                            searchResults.innerHTML = results.map(r =>
+                                '<div class="px-3 py-2 search-result-item" style="cursor:pointer;border-bottom:1px solid #2D3E4F;" ' +
+                                'data-name="' + r.short_name.replace(/"/g, '&quot;') + '" ' +
+                                'data-lat="' + r.lat + '" data-lng="' + r.lng + '">' +
+                                '<strong class="text-light">' + r.short_name + '</strong><br>' +
+                                '<small class="text-muted">' + r.name.substring(0, 60) + '</small>' +
+                                '</div>'
+                            ).join('');
+                        }
+                        searchResults.style.display = 'block';
+                    });
+            }, 300);
+        });
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') searchResults.style.display = 'none';
+        });
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+        searchResults.addEventListener('click', function(e) {
+            const item = e.target.closest('.search-result-item');
+            if (!item) return;
+            document.getElementById('newStopName').value = item.dataset.name;
+            document.getElementById('newStopLat').value = item.dataset.lat;
+            document.getElementById('newStopLng').value = item.dataset.lng;
+            searchResults.style.display = 'none';
+            searchInput.value = '';
+            // Show selected location on map
+            if (map) {
+                const selMarker = L.marker([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], {
+                    icon: L.divIcon({
+                        html: '<div style="background:#E0A060;color:white;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">?</div>',
+                        className: '',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    })
+                }).addTo(map).bindPopup('<strong>' + item.dataset.name + '</strong><br><small>Noch nicht hinzugefuegt</small>').openPopup();
+                map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 12);
+                setTimeout(() => map.removeLayer(selMarker), 10000);
+            }
+        });
+    }
 
     // Link hike selector to auto-fill coords
     const hikeSelect = document.getElementById('newStopHike');
@@ -301,6 +388,19 @@ function renderStopsOnMap() {
     } else if (bounds.length === 1) {
         map.setView(bounds[0], 12);
     }
+}
+
+function updateGoogleMapsLink() {
+    const link = document.getElementById('googleMapsLink');
+    if (!link || stopData.length < 2) return;
+    // Build Google Maps directions URL: origin / destination / waypoints
+    const origin = stopData[0].lat + ',' + stopData[0].lng;
+    const dest = stopData[stopData.length - 1].lat + ',' + stopData[stopData.length - 1].lng;
+    const waypoints = stopData.slice(1, -1).map(s => s.lat + ',' + s.lng).join('|');
+    let url = 'https://www.google.com/maps/dir/?api=1&origin=' + origin + '&destination=' + dest;
+    if (waypoints) url += '&waypoints=' + waypoints;
+    url += '&travelmode=driving';
+    link.href = url;
 }
 
 async function addStop() {
