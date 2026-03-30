@@ -543,6 +543,34 @@ def delete_trip(trip_id):
     return redirect(url_for('trip_list'))
 
 
+@app.route('/api/geocode')
+def geocode_search():
+    """Search for places using Nominatim (OpenStreetMap geocoding)"""
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
+        return jsonify([])
+    try:
+        encoded_q = urllib.parse.quote(query)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded_q}&format=json&limit=5&addressdetails=1&accept-language=de"
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0 (hiking trip planner)')
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode('utf-8'))
+        results = []
+        for item in data:
+            results.append({
+                'name': item.get('display_name', ''),
+                'short_name': item.get('name', item.get('display_name', '')[:40]),
+                'lat': float(item.get('lat', 0)),
+                'lng': float(item.get('lon', 0)),
+                'type': item.get('type', ''),
+                'category': item.get('class', '')
+            })
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([])
+
+
 @app.route('/api/trip/<int:trip_id>/stop', methods=['POST'])
 @login_required
 def add_trip_stop(trip_id):
