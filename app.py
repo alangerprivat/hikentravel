@@ -115,6 +115,25 @@ def init_admin_user():
         db.session.commit()
 
 
+def migrate_db():
+    """Add missing columns to existing tables"""
+    with db.engine.connect() as conn:
+        columns_to_add = [
+            ('route_geometry', 'TEXT'),
+            ('mapy_url', 'VARCHAR(500)'),
+        ]
+        for col_name, col_type in columns_to_add:
+            try:
+                conn.execute(db.text(f"SELECT {col_name} FROM hike LIMIT 1"))
+            except Exception:
+                conn.rollback()
+                try:
+                    conn.execute(db.text(f"ALTER TABLE hike ADD COLUMN {col_name} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+
+
 def init_sample_categories():
     """Initialize sample categories"""
     if Category.query.count() == 0:
@@ -133,6 +152,7 @@ def init_sample_categories():
 @app.before_request
 def before_request():
     db.create_all()
+    migrate_db()
     init_admin_user()
     init_sample_categories()
 
