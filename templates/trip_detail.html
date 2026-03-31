@@ -5,9 +5,14 @@
 {% block extra_css %}
 <style>
     #tripMap { height: 600px; }
-    .stop-item { background-color: #1A2332; border: 1px solid #2D3E4F; border-radius: 8px; padding: 10px 12px; margin-bottom: 0; cursor: grab; transition: all 0.2s; }
+    .stop-item { position: relative; background-color: #1A2332; border: 1px solid #2D3E4F; border-radius: 8px; padding: 10px 12px; margin-bottom: 0; cursor: grab; transition: all 0.2s; }
     .stop-item:hover { border-color: var(--color-green); }
-    .stop-item.dragging { opacity: 0.5; }
+    .stop-item.dragging { opacity: 0.4; transform: scale(0.97); }
+    .stop-item.drag-over-top { margin-top: 28px; transition: margin 0.15s ease; }
+    .stop-item.drag-over-top::before { content: ''; position: absolute; top: -16px; left: 0; right: 0; height: 3px; background: var(--color-green); border-radius: 2px; }
+    .stop-item.drag-over-bottom { margin-bottom: 28px; transition: margin 0.15s ease; }
+    .stop-item.drag-over-bottom::after { content: ''; position: absolute; bottom: -16px; left: 0; right: 0; height: 3px; background: var(--color-green); border-radius: 2px; }
+    .group-body-empty { padding: 18px 10px; text-align: center; color: #5A6A7A; font-size: 0.85rem; border: 2px dashed #2D3E4F; border-radius: 0 0 8px 8px; margin: 0 4px 4px 4px; }
     .stop-cat-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; }
     .route-connector { padding: 2px 0 2px 20px; margin-left: 14px; border-left: 2px dashed #C8956C; font-size: 0.8rem; color: #A0B0C0; }
     .route-connector .route-detail { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
@@ -131,7 +136,7 @@
                     </button>
                     {% endif %}
                     {% endif %}
-                 </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div id="tripMap"></div>
@@ -186,7 +191,7 @@
             </div>
             <div class="row g-2 mb-2">
                 <div class="col-8">
-                    <input type="text" class="form-control form-control-sm" id="newStopName" placeholder="Name *">
+                    <input type="text" class="form-control form-control-sm" id="newStopName" placeholder="Name (*)">
                 </div>
                 <div class="col-4">
                     <select class="form-select form-select-sm" id="newStopCategory">
@@ -261,538 +266,570 @@ const TRIP_ID = {{ trip.id }};
 const IS_AUTH = {{ 'true' if current_user.is_authenticated and not shared else 'false' }};
 let stopData = {{ stop_data|safe }};
 let groupData = {{ group_data|safe }};
-let map, markers = [], routeLines = [];
-let activeFilters = { routes: true, wanderung: true, stadt: true, sehenswuerdigkeit: true, unterkunft: true, restaurant: true, transport: true };
-let openGroups = {}; // track which groups are open
+let map, markers = [], ro]S[\ÈH×NÂ]XÝ]Q[\ÈHÈÝ]\ÎYKØ[\[ÎYKÝYYKÙZ[ÝÝY\YÚÙZ]YK[\Ý[YK\Ý]\[YK[ÜÜYHNÂ]Ü[ÜÝ\ÈHßNÈËÈXÚÈÚXÚÜÝ\È\HÜ[ÛÛÝÐUQÓÔWÐÓÓÔÈHÂ	ÝØ[\[ÉÎ	ÈÌÑÉË	ÜÝY	Î	ÈÐÎMMÉË	ÜÙZ[ÝÝY\YÚÙZ]	Î	ÈÑLL
+	Ë	Ý[\Ý[	Î	ÈÍLÑ
+Ë	Ü\Ý]\[	Î	ÈÑ
+Ë	Ý[ÜÜ	Î	ÈÐLLL	ÂNÂÛÛÝÕUWÕTWÓPSÈHÂ	ØØ\Î	ÉÞQMÎÈ]]ÉË	ÙÛÝÚZÚ[ÉÎ	ÉÞQÈH\ÜÉË	ØZÙIÎ	ÉÞQÈZY	Ë	ÜXX×Ý[ÜÜ	Î	ÉÞQÎÈÑTÂNÂ[Ý[ÛÜX]\][ÛZ[HÂY
+[Z[H]\	ÉÎÂY
+Z[
+
+H]\Z[
+È	ÈZ[ÎÂÛÛÝHX]ÛÜZ[È
+
+NÂÛÛÝHHZ[	H
+Â]\HÈ
+È	Ú	È
+ÈH
+È	ÛZ[È
+È	Ú	ÎÂBØÝ[Y[Y][\Ý[\	ÑÓPÛÛ[ØYY	Ë[Ý[Û
+HÂY
+]Ú[ÝË
+H]\Â]Ù[\HÍ
+ËKLËKÛÛHH
+NÂY
+ÝÜ]K[Ý
+HÈÙ[\HÜÝÜ]VÌK]ÝÜ]VÌK×NÈÛÛHHÈBX\HX\
+	Ý\X\	ÊKÙ]Y]ÊÙ[\ÛÛJNÂ[S^Y\	ÚÎËÞÜßK[KÜ[ÝY]X\ÜËÞÞKÞÞKÞÞ_KÉËÂ]X][Û	ÉÛÜNÈÜ[ÝY]X\	ÂJKYÊX\
+NÂY
+T×ÐUU
+HÂX\Û	ØÛXÚÉË[Ý[ÛJHÂØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜ]	ÊK[YHHK]Ë]Ñ^Y
 
-const CATEGORY_COLORS = {
-    'wanderung': '#3DB88C', 'stadt': '#C8956C', 'sehenswuerdigkeit': '#E0A060',
-    'unterkunft': '#6BA3D6', 'restaurant': '#D66B6B', 'transport': '#A0A0A0'
-};
-const ROUTE_TYPE_LABELS = {
-    'car': '&#x1F697; Auto', 'foot_hiking': '&#x1F6B6; Zu Fuss', 'bike': '&#x1F6B2; Fahrrad', 'public_transport': '&#x1F68C; OEPNV'
-};
+NÂØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜÉÊK[YHHK]ËËÑ^Y
 
-function formatDuration(min) {
-    if (!min) return '';
-    if (min < 60) return min + ' min';
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return m > 0 ? h+ 'h ' + m + 'min' : h + 'h';
-}
+NÂJNÂB[\ÜÝ\YÝÜÊ
+NÂ[\ÝÜÓÛX\
 
-document.addEventListener('DOMContentLoaded', function() {
-    if (!window.L) return;
-    let center = [47.5, 13.0], zoom = 5;
-    if (stopData.length > 0) { center = [stopData[0].lat, stopData[0].lng]; zoom = 8; }
+NÂ\]QÛÛÙÛSX\Ó[Ê
+NÂ\]QÜÝ\Ù[XÝ
 
-    map = L.map('tripMap').setView(center, zoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+NÂÙ]\XÙTÙX\Ú
 
-    if (IS_AUTH) {
-        map.on('click', function(e) {
-            document.getElementById('newStopLat').value = e.latlng.lat.toFixed(6);
-            document.getElementById('newStopLng').value = e.latlng.lng.toFixed(6);
-        });
-    }
+NÂÙ]\ZÙTÙ[XÝ
 
-    renderGroupedStops();
-    renderStopsOnMap();
-    updateGoogleMapsLink();
-    updateGroupSelect();
-    setupPlaceSearch();
-    setupHikeSelect();
-});
+NÂJNÂËÈOOOOHSTÔÕTQÕÔÈTÕOOOOB[Ý[Û[\ÜÝ\YÝÜÊ
+HÂÛÛÝÛÛZ[\HØÝ[Y[Ù][[Y[RY
+	ÙÜÝ\YÝÜÓ\Ý	ÊNÂY
+XÛÛZ[\H]\Â][H	ÉÎÂËÈÜÝ\ÝÜÂÛÛÝÜÝ\YHßNÂÛÛÝ[ÜÝ\YH×NÂÜÝ\]KÜXXÚ
+ÈOÈÜÝ\YÙËYHHÈËÝÜÎ×HNÈJNÂÝÜ]KÜXXÚ
+ÈOÂY
+ËÜÝ\ÚY	ÜÝ\YÜËÜÝ\ÚYJHÂÜÝ\YÜËÜÝ\ÚYKÝÜË\Ú
+ÊNÂH[ÙHÂ[ÜÝ\Y\Ú
+ÊNÂBJNÂËÈ[\XXÚÜÝ\ÜÝ\]KÜXXÚ
+ÈOÂÛÛÝÜHÜÝ\YÙËYNÂÛÛÝ\ÓÜ[HÜ[ÜÝ\ÖÙËYHOOH[ÙNÈËÈY][Ü[ÛÛÝ\ÝHÜÝÜËYXÙJ
+Ý[KÊHOÝ[H
+È
+Ë\Ý[ÙWÝ×Û^ÚÛH
+K
+KÑ^Y
+JNÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\XØ\]KYÜÝ\ZYHÈ
+ÈËY
+È	ÈÎÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\ZXY\Ý[OHXÚÙÜÝ[XÛÛÜÈ
+ÈËÛÛÜ
+È	ÌÌÎÈÜ\[Y
+ÛÛY	È
+ÈËÛÛÜ
+È	ÎÈÛÛXÚÏHÙÙÛQÜÝ\
+	È
+ÈËY
+È	ÊHÎÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\]]HHÛ\ÜÏHHKXÚ]ÛYÝÛÚ]ÛÈ
+È
+\ÓÜ[È	ÉÈ	ÈÛÛ\ÙY	ÊH
+È	ÈYHÚ]ÛIÈ
+ÈËY
+È	ÈÚO	È
+È\ØÒ[
+Ë[YJH
+È	ÈÜ[Û\ÜÏHYÙHËY\ÈË[ÜXÚ]KMLÈ
+ÈÜÝÜË[Ý
+È	ÏÜÜ[Ù]ÎÂ[
+ÏH	Ï]Û\ÜÏHY^[YÛZ][\ËXÙ[\Ø\LÎÂ[
+ÏH	ÏÜ[Û\ÜÏHÜÝ\[Y]HÈ
+È\Ý
+È	ÈÛOÜÜ[ÎÂY
+T×ÐUU
+HÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\XXÝ[ÛÈÎÂ[
+ÏH	Ï]ÛÛ\ÜÏH[Ý][K[YÚÛÛXÚÏH][ÝÜÜYØ][Û
+NÜ[[YQÜÝ\
+	È
+ÈËY
+È	ÊH]OH[X[[[HÛ\ÜÏHHK\[Ú[ÚOØ]ÛÎÂ[
+ÏH	Ï]ÛÛ\ÜÏH[Ý][KY[Ù\ÛÛXÚÏH][ÝÜÜYØ][Û
+NÙ[]QÜÝ\
+	È
+ÈËY
+È	ÊH]OHÙ\ØÚ[HÛ\ÜÏHHK]\ÚÚOØ]ÛÎÂ[
+ÏH	ÏÙ]ÎÂB[
+ÏH	ÏÙ]Ù]ÎÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\XÙIÈ
+È
+\ÓÜ[È	ÉÈ	ÈÛÛ\ÙY	ÊH
+È	ÈYHÜÝ\XÙKIÈ
+ÈËY
+È	ÈÎÂY
+ÜÝÜË[ÝOOH
+HÂ[
+ÏH	Ï]Û\ÜÏHÜÝ\XÙKY[\HHÛ\ÜÏHHK\ÚYÛÜÝLÚOÙZ[HÝÜÈ[Y\Ù\Ü\OÙ]ÎÂH[ÙHÂ[
+ÏH[\ÝÜÓ\Ý
+ÜÝÜËËY
+NÂB[
+ÏH	ÏÙ]Ù]ÎÂJNÂËÈ[ÜÝ\YÝÜÂY
+[ÜÝ\Y[Ý
+HÂ[
+ÏH	Ï]Û\ÜÏH[ÜÝ\Y\ÙXÝ[ÛÎÂ[
+ÏH	Ï]Û\ÜÏHY^\ÝYKXÛÛ[X]ÙY[[YÛZ][\ËXÙ[\XLHLHÎÂ[
+ÏH	ÏÛX[Û\ÜÏH^[]]YËXÛHÛ\ÜÏHHKXÛÛXÝ[ÛÚOXÚÜ\Y\ÜÛX[ÎÂ[
+ÏH	ÏÜ[Û\ÜÏHYÙHË\ÙXÛÛ\HÈ
+È[ÜÝ\Y[Ý
+È	ÏÜÜ[ÎÂ[
+ÏH	ÏÙ]ÎÂ[
+ÏH[\ÝÜÓ\Ý
+[ÜÝ\Y[
+NÂ[
+ÏH	ÏÙ]ÎÂBY
+ÝÜ]K[ÝOOH
+HÂ[H	Ï]Û\ÜÏH^XÙ[\^[]]YKMHÛ\ÜÏHHK\ÚYÛÜÝLËLHÚOØÚÙZ[HÝÜËYYÙH[\Ý[[HOÙ]ÎÂBÛÛZ[\[\SH[ÂY
+T×ÐUU
+HÙ]\YÑÜ
 
-// ===== RENDER GROUPED STOPS LIST =====
-function renderGroupedStops() {
-    const container = document.getElementById('groupedStopsList');
-    if (!container) return;
-    let html = '';
+NÂB[Ý[Û[\ÝÜÓ\Ý
+ÝÜËÜÝ\Y
+HÂ][H	ÉÎÂÝÜËÜXXÚ
 
-    // Group stops
-    const grouped = {};
-    const ungrouped = [];
-    groupData.forEach(g => { grouped[g.id] = { ...g, stops: [] }; });
-    stopData.forEach(s => {
-        if (s.group_id && grouped[s.group_id]) {
-            grouped[s.group_id].stops.push(s);
-        } else {
-            ungrouped.push(s);
-        }
-    });
+ÝÜJHOÂËÈÝÜ][B[
+ÏH	Ï]Û\ÜÏHÝÜZ][H]KZYHÈ
+ÈÝÜY
+È	È]KYÜÝ\HÈ
+È
+ÜÝ\Y	ÉÊH
+È	ÈYÙØXOHÈ
+È
+T×ÐUUÈ	ÝYIÈ	Ù[ÙIÊH
+È	ÈÎÂ[
+ÏH	Ï]Û\ÜÏHY^\ÝYKXÛÛ[X]ÙY[[YÛZ][\Ë\Ý\ÎÂ[
+ÏH	Ï]Û\ÜÏHY^[YÛZ][\ËXÙ[\Ø\LHÎÂ[
+ÏH	ÏÜ[Ý[OHÛÛÜÈ
+È
+ÐUQÓÔWÐÓÓÔÖÜÝÜØ]YÛÜWH	ÈÌÑÉÊH
+È	ÈÈ
+ÈÝÜXÛÛ
+È	ÏÜÜ[ÎÂ[
+ÏH	ÏÝÛÈÛ\ÜÏHÛX[È
+È
+ÝÜÜÚ][Û
+ÈJH
+È	Ë	È
+È\ØÒ[
+ÝÜ[YJH
+È	ÏÜÝÛÏÎÂ[
+ÏH	ÏÜ[Û\ÜÏHÝÜXØ]XYÙHYÙHÝ[OHXÚÙÜÝ[È
+È
+ÐUQÓÔWÐÓÓÔÖÜÝÜØ]YÛÜWH	ÈÌÑÉÊH
+È	ÌØÛÛÜÈ
+È
+ÐUQÓÔWÐÓÓÔÖÜÝÜØ]YÛÜWH	ÈÌÑÉÊH
+È	ÈÈ
+ÈÙ]Ø]X[
+ÝÜØ]YÛÜJH
+È	ÏÜÜ[ÎÂ[
+ÏH	ÏÙ]ÎÂY
+T×ÐUU
+HÂ[
+ÏH	Ï]Û\ÜÏHYÜÝ\YÜÝ\\ÛHÎÂ[
+ÏH	Ï]ÛÛ\ÜÏH[Ý][K[YÚ\ÛHKLLHÛÛXÚÏHY]ÝÜ
+	È
+ÈÝÜY
+È	ÊH]OHX\Z][HÛ\ÜÏHHK\[Ú[ÚOØ]ÛÎÂ[
+ÏH	Ï]ÛÛ\ÜÏH[Ý][KY[Ù\\ÛHKLLHÛÛXÚÏH[]TÝÜ
+	È
+ÈÝÜY
+È	ÊH]OHÙ\ØÚ[HÛ\ÜÏHHK]\ÚÚOØ]ÛÎÂ[
+ÏH	ÏÙ]ÎÂB[
+ÏH	ÏÙ]ÎÂY
+ÝÜ\][ÛÛZ[]\ÊHÂ[
+ÏH	ÏÛX[Û\ÜÏH^[]]YXØÚÈ]LHHÛ\ÜÏHHKXÛØÚÈÚO	È
+ÈÜX]\][ÛÝÜ\][ÛÛZ[]\ÊH
+È	È]Y[[ÜÛX[ÎÂB[
+ÏH	ÏÙ]ÎÂËÈÝ]HÛÛXÝÜÈ^ÝÜY
+ÝÜ\Ý[ÙWÝ×Û^ÚÛH	HÝÜË[ÝHJHÂ[
+ÏH	Ï]Û\ÜÏHÝ]KXÛÛXÝÜÎÂ[
+ÏH	Ï]Û\ÜÏHÝ]KY]Z[ÎÂ[
+ÏH	ÏÜ[È
+È
+ÕUWÕTWÓPSÖÜÝÜÝ]WÝ\WH	ÉÞQMÎÈ]]ÉÊH
+È	ÏÜÜ[ÎÂ[
+ÏH	ÏÜ[Û\ÜÏH^[YÚÈ
+ÈÝÜ\Ý[ÙWÝ×Û^ÚÛH
+È	ÈÛOÜÜ[ÎÂY
+ÝÜ\][ÛÝ×Û^ÛZ[HÂ[
+ÏH	ÏÜ[Û\ÜÏH^[YÚÈ
+ÈÜX]\][ÛÝÜ\][ÛÝ×Û^ÛZ[H
+È	ÏÜÜ[ÎÂB[
+ÏH	ÏÙ]Ù]ÎÂH[ÙHY
+HÝÜË[ÝHJHÂ[
+ÏH	Ï]Ý[OHZYÚÈÙ]ÎÂBJNÂ]\[ÂB[Ý[ÛÙ]Ø]X[
+Ø]
+HÂÛÛÝX[ÈHÈØ[\[ÎÕØ[\[ÉËÝYÔÝY	ËÙZ[ÝÝY\YÚÙZ]ÔÒIË[\Ý[Õ[\Ý[	Ë\Ý]\[Ô\Ý]\[	Ë[ÜÜÕ[ÜÜ	ÈNÂ]\X[ÖØØ]HØ]ÂB[Ý[Û\ØÒ[
+ÊHÂÛÛÝHØÝ[Y[ÜX]Q[[Y[
+	Ù]ÊNÂ^ÛÛ[HÎÂ]\[\SÂBËÈOOOOHÔÕTÑÑÓHOOOOB[Ý[ÛÙÙÛQÜÝ\
+ÚY
+HÂÛÛÝÙHHØÝ[Y[Ù][[Y[RY
+	ÙÜÝ\XÙKIÈ
+ÈÚY
+NÂÛÛÝÚ]ÛHØÝ[Y[Ù][[Y[RY
+	ØÚ]ÛIÈ
+ÈÚY
+NÂY
+XÙJH]\ÂÛÛÝ\ÐÛÛ\ÙYHÙKÛ\ÜÓ\ÝÛÛZ[Ê	ØÛÛ\ÙY	ÊNÂÙKÛ\ÜÓ\ÝÙÙÛJ	ØÛÛ\ÙY	ÊNÂÚ]ÛÛ\ÜÓ\ÝÙÙÛJ	ØÛÛ\ÙY	ÊNÂÜ[ÜÝ\ÖÙÚYHH\ÐÛÛ\ÙYÈËÈØ\ÈÛÛ\ÙYÝÈÜ[ËÈÛÛHX\ÈÜÝ\Ü[\ÛÛÝ[SÜ[HØXÝ[Y\ÊÜ[ÜÝ\ÊKÛÛYJOOOHYJNÂY
+\ÐÛÛ\ÙY
+HÂËÈÜ[[È\ÈÜÝ\HÛÛHÈ]ÈÝÜÂÛÛÝÔÝÜÈHÝÜ]K[\ÈOËÜÝ\ÚYOOHÚY
+NÂY
+ÔÝÜË[Ý
+HÛÛUÔÝÜÊÔÝÜÊNÂH[ÙHÂËÈÛÜÚ[ÈHYÈÜÝ\ÈÜ[ÚÝÈ[\Y
+X[SÜ[HÛÛUÔÝÜÊÝÜ]JNÂBB[Ý[ÛÛÛUÔÝÜÊÝÜÊHÂY
+[X\ÝÜË[ÝOOH
+H]\ÂÛÛÝÝ[ÈH×NÂÝÜËÜXXÚ
+ÈOÂY
+XÝ]Q[\ÖÜËØ]YÛÜWHOOH[ÙJHÝ[Ë\Ú
+ÜË]Ë×JNÂY
+ËÝ]WÝ×Û^	ËÝ]WÝ×Û^ÛÛÜ[]\È	XÝ]Q[\ËÝ]\ÊHÂËÝ]WÝ×Û^ÛÛÜ[]\ËÜXXÚ
+ÈOÝ[Ë\Ú
+ØÖÌWKÖÌWJJNÂBJNÂY
+Ý[Ë[ÝJHX\]Ý[ÊÝ[ËÈY[ÎÍ
+HJNÂ[ÙHY
+Ý[Ë[ÝOOHJHX\Ù]Y]ÊÝ[ÖÌKLNÂBËÈOOOOHPTSTSÈOOOOB[Ý[Û[\ÝÜÓÛX\
 
-    // Render each group
-    groupData.forEach(g => {
-        const grp = grouped[g.id];
-        const isOpen = openGroups[g.id] !== false; // default open
-        const dist = grp.stops.reduce((sum, s) => sum + (s.distance_to_next_km || 0), 0).toFixed(1);
-        html += '<div class="group-card" data-group-id="' + g.id + '">';
-        html += '<div class="group-header" style="background-color:' + g.color + '33; border-left: 4px solid ' + g.color + ';" onclick="toggleGroup(' + g.id + ')">';
-        html += '<div class="group-title"><i class="bi bi-chevron-down chevron' + (isOpen ? '' : ' collapsed') + '" id="chevron-' + g.id + '"></i> ' + escHtml(g.name) + ' <span class="badge bg-dark bg-opacity-50">' + grp.stops.length + '</span></div>';
-        html += '<div class="d-flex align-items-center gap-2">';
-        html += '<span class="group-meta">' + dist + ' km</span>';
-        if (IS_AUTH) {
-            html += '<div class="group-actions">';
-            html += '<button class="btn btn-outline-light" onclick="event.stopPropagation();renameGroup(' + g.id + ')" title="Umbenennen"><i class="bi bi-pencil"></i></button>';
-            html += '<button class="btn btn-outline-danger" onclick="event.stopPropagation();deleteGroup(' + g.id + ')" title="Loeschen"><i class="bi bi-trash"></i></button>';
-            html += '</div>';
-        }
-        html += '</div></div>';
-        html += '<div class="group-body' + (isOpen ? '' : ' collapsed') + '" id="group-body-' + g.id + '">';
-        html += renderStopsList(grp.stops, g.id);
-        html += '</div></div>';
-    });
+HÂX\Ù\ËÜXXÚ
+HOX\[[ÝS^Y\JJNÂÝ]S[\ËÜXXÚ
+OX\[[ÝS^Y\
+JNÂX\Ù\ÈH×NÂÝ]S[\ÈH×NÂÛÛÝÝ[ÈH×NÂÝÜ]KÜXXÚ
 
-    // Ungrouped stops
-    if (ungrouped.length > 0) {
-        html += '<div class="ungrouped-section">';
-        html += '<div class="d-flex justify-content-between align-items-center mb-1 px-1">';
-        html += '<small class="text-muted fw-bold"><i class="bi bi-collection"></i> Nicht gruppiert</small>';
-        html += '<span class="badge bg-secondary">' + ungrouped.length + '</span>';
-        html += '</div>';
-        html += renderStopsList(ungrouped, null);
-        html += '</div>';
-    }
+ÝÜJHOÂY
+XXÝ]Q[\ÖÜÝÜØ]YÛÜWJH]\ÂÛÛÝÛÛÜHÐUQÓÔWÐÓÓÔÖÜÝÜØ]YÛÜWH	ÈÌÑÉÎÂÛÛÝXÛÛH]XÛÛÂ[	Ï]Ý[OHXÚÙÜÝ[È
+ÈÛÛÜ
+È	ÎØÛÛÜÚ]NÝÚYÚZYÚØÜ\\Y]\ÎL	NÙ\Ü^N^Ø[YÛZ][\ÎÙ[\Ú\ÝYKXÛÛ[Ù[\ÙÛ]ÙZYÚÛÙÛ\Ú^NLÜØÜ\ÛÛYÚ]NØÞ\ÚYÝÎ
+ØJ
+NÈÈ
+È
+H
+ÈJH
+È	ÏÙ]ËÛ\ÜÓ[YN	ÉËXÛÛÚ^NÌKXÛÛ[ÚÜÌMMBJNÂÛÛÝX\Ù\HX\Ù\ÜÝÜ]ÝÜ×KÈXÛÛJKYÊX\
+B[Ü\
+	ÏÝÛÏÈ
+ÈÝÜXÛÛ
+È	È	È
+È\ØÒ[
+ÝÜ[YJH
+È	ÏÜÝÛÏÈ
+Â
+ÝÜ\][ÛÛZ[]\ÈÈ	ÏÛX[È
+ÈÜX]\][ÛÝÜ\][ÛÛZ[]\ÊH
+È	È]Y[[ÜÛX[È	ÉÊJNÂX\Ù\Ë\Ú
+X\Ù\NÂÝ[Ë\Ú
+ÜÝÜ]ÝÜ×JNÂËÈÝ]H[BY
+XÝ]Q[\ËÝ]\È	ÝÜÝ]WÝ×Û^	ÝÜÝ]WÝ×Û^ÛÛÜ[]\ÊHÂÛÛÝÛÛÜÈHÝÜÝ]WÝ×Û^ÛÛÜ[]\ËX\
+ÈOØÖÌWKÖÌWJNÂÛÛÝ[HHÛ[[JÛÛÜËÂÛÛÜÛÛÜÙZYÚ
+ÜXÚ]NË\Ú\^NÝÜÝ]WÝ\HOOH	ÙÛÝÚZÚ[ÉÈÈ	Î	È[JKYÊX\
+NÂÝ]S[\Ë\Ú
+[JNÂÛÛÜËÜXXÚ
+ÈOÝ[Ë\Ú
+ÊJNÂBJNÂY
+Ý[Ë[ÝJHX\]Ý[ÊÝ[ËÈY[ÎÌÌÌHJNÂ[ÙHY
+Ý[Ë[ÝOOHJHX\Ù]Y]ÊÝ[ÖÌKLNÂBËÈOOOOHSTÓÓÓÈOOOOB[Ý[ÛÙÙÛQ[\Ú\
+HÂÛÛÝ[\Ù^HHÚ\]\Ù][\ÂÚ\Û\ÜÓ\ÝÙÙÛJ	ØXÝ]IÊNÂXÝ]Q[\ÖÙ[\Ù^WHHÚ\Û\ÜÓ\ÝÛÛZ[Ê	ØXÝ]IÊNÂ[\ÝÜÓÛX\
 
-    if (stopData.length === 0) {
-        html = '<div class="text-center text-muted py-4"><i class="bi bi-signpost-2 fs-1"></i><br>Noch keine Stops. Fuege den ersten hinzu!</div>';
-    }
+NÂB[Ý[Û\Ù][\Ê
+HÂØÝ[Y[]Y\TÙ[XÝÜ[
+	Ë[\XÚ\	ÊKÜXXÚ
+ÈOÂËÛ\ÜÓ\ÝY
+	ØXÝ]IÊNÂXÝ]Q[\ÖØË]\Ù][\HHYNÂJNÂ[\ÝÜÓÛX\
 
-    container.innerHTML = html;
-    if (IS_AUTH) setupDragDrop();
-}
+NÂBËÈOOOOHÔÕTPSQÑSQSOOOOB\Þ[È[Ý[ÛÜX]QÜÝ\
 
-function renderStopsList(stops, groupId) {
-    let html = '';
-    stops.forEach((stop, i) => {
-        // Stop item
-        html += '<div class="stop-item" data-id="' + stop.id + '" data-group="' + (groupId || '') + '" draggable="' + (IS_AUTH ? 'true' : 'false') + '">';
-        html += '<div class="d-flex justify-content-between align-items-start">';
-        html += '<div class="d-flex align-items-center gap-1">';
-        html += '<span style="color:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '">' + stop.icon + '</span>';
-        html += '<strong class="small">' + (stop.position + 1) + '. ' + escHtml(stop.name) + '</strong>';
-        html += '<span class="stop-cat-badge badge" style="background:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '22;color:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '">' + getCatLabel(stop.category) + '</span>';
-        html += '</div>';
-        if (IS_AUTH) {
-            html += '<div class="btn-group btn-group-sm">';
-            html += '<button class="btn btn-outline-light btn-sm py-0 px-1" onclick="editStop(' + stop.id + ')" title="Bearbeiten"><i class="bi bi-pencil"></i></button>';
-            html += '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteStop(' + stop.id + ')" title="Loeschen"><i class="bi bi-trash"></i></button>';
-            html += '</div>';
-        }
-        html += '</div>';
-        if (stop.duration_minutes) {
-            html += '<small class="text-muted d-block mt-1"><i class="bi bi-clock"></i> ' + formatDuration(stop.duration_minutes) + ' Aufenthalt</small>';
-        }
-        html += '</div>';
+HÂÛÛÝ[YHHÛ\
+	ÑÜ\[[YNË	Ó]YHÜ\IÊNÂY
+[[YJH]\ÂÛÛÝÛÛÜÈHÉÈÌÑÉË	ÈÐÎMMÉË	ÈÍLÑ
+Ë	ÈÑ
+Ë	ÈÎPNPË	ÈÑMÑLË	ÈÌPPÎPÉË	ÈÐLL
+	×NÂÛÛÝÛÛÜHÛÛÜÖÙÜÝ\]K[Ý	HÛÛÜË[ÝNÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÙÜÝ\	ËÂY]Ù	ÔÔÕ	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÈ[YKÛÛÜJBJNÂY
+\ÜÚÊHÂÛÛÝÈH]ØZ]\ÜÛÛ
+NÂÜÝ\]K\Ú
+ÊNÂÜ[ÜÝ\ÖÙËYHHYNÂ[\ÜÝ\YÝÜÊ
+NÂ\]QÜÝ\Ù[XÝ
 
-        // Route connector to next stop
-        if (stop.distance_to_next_km && i < stops.length - 1) {
-            html += '<div class="route-connector">';
-            html += '<div class="route-detail">';
-            html += '<span>' + (ROUTE_TYPE_LABELS[stop.route_type] || '&#x1F697; Auto') + '</span>';
-            html += '<span class="text-light">' + stop.distance_to_next_km + ' km</span>';
-            if (stop.duration_to_next_min) {
-                html += '<span class="text-light">' + formatDuration(stop.duration_to_next_min) + '</span>';
-            }
-            html += '</div></div>';
-        } else if (i < stops.length - 1) {
-            html += '<div style="height:4px;"></div>';
-        }
-    });
-    return html;
-}
+NÂBHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB\Þ[È[Ý[Û[[YQÜÝ\
+ÚY
+HÂÛÛÝÈHÜÝ\]K[
+OYOOHÚY
+NÂY
+YÊH]\ÂÛÛÝ[YHHÛ\
+	Ó]Y\[YNËË[YJNÂY
+[[YH[YHOOHË[YJH]\ÂHÂ]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÙÜÝ\ÉÈ
+ÈÚYÂY]Ù	ÔU	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÈ[YHJBJNÂË[YHH[YNÂ[\ÜÝ\YÝÜÊ
+NÂ\]QÜÝ\Ù[XÝ
 
-function getCatLabel(cat) {
-    const labels = { wanderung:'Wanderung', stadt:'Stadt', sehenswuerdigkeit:'POI', unterkunft:'Unterkunft', restaurant:'Restaurant', transport:'Transport' };
-    return labels[cat] || cat;
-}
+NÂHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB\Þ[È[Ý[Û[]QÜÝ\
+ÚY
+HÂY
+XÛÛ\J	ÑÜ\HÙ\ØÚ[ÈÝÜÈZX[\[[ÊJH]\ÂHÂ]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÙÜÝ\ÉÈ
+ÈÚYÈY]Ù	ÑSUIÈJNÂÜÝ\]HHÜÝ\]K[\ÈOËYOOHÚY
+NÂÝÜ]KÜXXÚ
+ÈOÈY
+ËÜÝ\ÚYOOHÚY
+HËÜÝ\ÚYH[ÈJNÂ[\ÜÝ\YÝÜÊ
+NÂ\]QÜÝ\Ù[XÝ
 
-function escHtml(s) {
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-}
+NÂHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB\Þ[È[Ý[Û]]ÑÜÝ\ÝÜÊ
+HÂY
+XÛÛ\J	ÔÝÜÈ]]ÛX]\ØÚXÚZ\Ù]YÙ[Ü\Y\[È\ÝZ[HÜ\[Ù\[\Ù]ÊJH]\ÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËØ]]ËYÜÝ\	ËÈY]Ù	ÔÔÕ	ÈJNÂY
+\ÜÚÊHÈØØ][Û[ØY
 
-// ===== GROUP TOGGLE =====
-function toggleGroup(gid) {
-    const body = document.getElementById('group-body-' + gid);
-    const chevron = document.getElementById('chevron-' + gid);
-    if (!body) return;
-    const isCollapsed = body.classList.contains('collapsed');
-    body.classList.toggle('collapsed');
-    chevron.classList.toggle('collapsed');
-    openGroups[gid] = isCollapsed; // was collapsed, now open
+NÈB[ÙHÈÛÛÝH]ØZ]\ÜÛÛ
+NÈ[\
+\Ü	ÑZ\ÊNÈBHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB[Ý[Û\]QÜÝ\Ù[XÝ
 
-    // Zoom map to group or full trip
-    const anyOpen = Object.values(openGroups).some(v => v === true);
-    if (isCollapsed) {
-        // Opening this group - zoom to its stops
-        const gStops = stopData.filter(s => s.group_id === gid);
-        if (gStops.length > 0) zoomToStops(gStops);
-    } else {
-        // Closing - if no groups open, show full trip
-        if (!anyOpen) zoomToStops(stopData);
-    }
-}
+HÂÛÛÝÙ[HØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜÜÝ\	ÊNÂY
+\Ù[
+H]\ÂÙ[[\SH	ÏÜ[Û[YOHÙZ[HÜ\OÛÜ[ÛÎÂÜÝ\]KÜXXÚ
+ÈOÂÙ[[\S
+ÏH	ÏÜ[Û[YOHÈ
+ÈËY
+È	ÈÈ
+È\ØÒ[
+Ë[YJH
+È	ÏÛÜ[ÛÎÂJNÂBËÈOOOOHÓÓÑÓHPTÈSÈOOOOB[Ý[Û\]QÛÛÙÛSX\Ó[Ê
+HÂÛÛÝ[ÈHØÝ[Y[Ù][[Y[RY
+	ÙÛÛÙÛSX\Ó[ÉÊNÂY
+[[ÈÝÜ]K[ÝH]\ÂÛÛÝÜYÚ[HÝÜ]VÌK]
+È	Ë	È
+ÈÝÜ]VÌKÎÂÛÛÝ\ÝHÝÜ]VÜÝÜ]K[ÝHWK]
+È	Ë	È
+ÈÝÜ]VÜÝÜ]K[ÝHWKÎÂÛÛÝØ^\Ú[ÈHÝÜ]KÛXÙJKLJKX\
+ÈOË]
+È	Ë	È
+ÈËÊKÚ[	ß	ÊNÂ]\H	ÚÎËÝÝÝËÛÛÙÛKÛÛKÛX\ËÙ\ÏØ\OLIÜYÚ[IÈ
+ÈÜYÚ[
+È	É\Ý[][ÛIÈ
+È\ÝÂY
+Ø^\Ú[ÊH\
+ÏH	ÉØ^\Ú[ÏIÈ
+ÈØ^\Ú[ÎÂ\
+ÏH	É][[ÙOY][ÉÎÂ[ËYH\ÂBËÈOOOOHÕÔÔQOOOOB\Þ[È[Ý[ÛYÝÜ
 
-function zoomToStops(stops) {
-    if (!map || stops.length === 0) return;
-    const bounds = [];
-    stops.forEach(s => {
-        if (activeFilters[s.category] !== false) bounds.push([s.lat, s.lng]);
-        if (s.route_to_next && s.route_to_next.coordinates && activeFilters.routes) {
-            s.route_to_next.coordinates.forEach(c => bounds.push([c[1], c[0]]));
-        }
-    });
-    if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
-    else if (bounds.length === 1) map.setView(bounds[0], 12);
-}
+HÂÛÛÝ[YHHØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜ[YIÊK[YK[J
+NÂÛÛÝ]H\ÙQØ]
+ØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜ]	ÊK[YJNÂÛÛÝÈH\ÙQØ]
+ØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜÉÊK[YJNÂY
+[[YH\ÓS]
+H\ÓSÊJHÈ[\
+	Ð]H[YH[ÛÛÜ[][[ÙX[ÊNÈ]\ÈBÛÛÝÙHHÂ[YK]ËÝÜØØ]YÛÜNØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜØ]YÛÜIÊK[YKÝ]WÝ\NØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜÝ]U\IÊK[YK\][ÛÛZ[]\ÎØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜ\][ÛÊK[YHZÙWÚYØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜZÙIÊK[YH[\ØÜ\[ÛØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜ\ØÜ\[ÛÊK[YKÜÝ\ÚYØÝ[Y[Ù][[Y[RY
+	Û]ÔÝÜÜÝ\	ÊK[YH[NÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜÝÜ	ËÂY]Ù	ÔÔÕ	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÙJBJNÂY
+\ÜÚÊHØØ][Û[ØY
 
-// ===== MAP RENDERING =====
-function renderStopsOnMap() {
-    markers.forEach(m => map.removeLayer(m));
-    routeLines.forEach(l => map.removeLayer(l));
-    markers = [];
-    routeLines = [];
-    const bounds = [];
+NÂ[ÙHÈÛÛÝH]ØZ]\ÜÛÛ
+NÈ[\
+\Ü	ÑZ\ÊNÈBHØ]Ú
+JHÈ[\
+	Ó]Ù\ÙZ\	È
+ÈKY\ÜØYÙJNÈBB\Þ[È[Ý[Û[]TÝÜ
+ÝÜY
+HÂY
+XÛÛ\J	ÔÝÜÚ\ÛXÚ[\[ÉÊJH]\ÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜÝÜÉÈ
+ÈÝÜYÈY]Ù	ÑSUIÈJNÂY
+\ÜÚÊHØØ][Û[ØY
 
-    stopData.forEach((stop, i) => {
-        if (!activeFilters[stop.category]) return;
-        const color = CATEGORY_COLORS[stop.category] || '#3DB88C';
-        const icon = L.divIcon({
-            html: '<div style="background:' + color + ';color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">' + (i + 1) + '</div>',
-            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
-        });
-        const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(map)
-            .bindPopup('<strong>' + stop.icon + ' ' + escHtml(stop.name) + '</strong>' +
-                       (stop.duration_minutes ? '<br><small>' + formatDuration(stop.duration_minutes) + ' Aufenthalt</small>' : ''));
-        markers.push(marker);
-        bounds.push([stop.lat, stop.lng]);
+NÂHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB[Ý[ÛY]ÝÜ
+ÝÜY
+HÂÛÛÝÝÜHÝÜ]K[
+ÈOËYOOHÝÜY
+NÂY
+\ÝÜ
+H]\ÂÛÛÝ]Ó[YHHÛ\
+	Ó]Y\[YNËÝÜ[YJNÂY
+]Ó[YHOOH[
+H]\Â]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜÝÜÉÈ
+ÈÝÜYÂY]Ù	ÔU	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÈ[YN]Ó[YHJBJK[OÈY
+ÚÊHØØ][Û[ØY
 
-        // Route line
-        if (activeFilters.routes && stop.route_to_next && stop.route_to_next.coordinates) {
-            const coords = stop.route_to_next.coordinates.map(c => [c[1], c[0]]);
-            const line = L.polyline(coords, {
-                color: color, weight: 4, opacity: 0.7,
-                dashArray: stop.route_type === 'foot_hiking' ? '8, 8' : null
-            }).addTo(map);
-            routeLines.push(line);
-            coords.forEach(c => bounds.push(c));
-        }
-    });
+NÈJNÂB\Þ[È[Ý[ÛXØ[Ý[]TÝ]\Ê
+HÂÛÛÝH][\Ù]ÛÜÙ\Ý
+	Ø]ÛÊNÂ\ØXYHYNÂ[\SH	ÏÜ[Û\ÜÏHÜ[\XÜ\Ü[\XÜ\\ÛHÜÜ[ÎÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜXØ[Ý[]K\Ý]\ÉËÈY]Ù	ÔÔÕ	ÈJNÂY
+\ÜÚÊHØØ][Û[ØY
 
-    if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
-    else if (bounds.length === 1) map.setView(bounds[0], 12);
-}
+NÂHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈB\ØXYH[ÙNÂ[\SH	ÏHÛ\ÜÏHHKX\ÝË\\X]ÚOÎÂBËÈOOOOHQÈ	ÔOOOOB[Ý[ÛÙ]\YÑÜ
 
-// ===== FILTER CONTROLS =====
-function toggleFilter(chip) {
-    const filterKey = chip.dataset.filter;
-    chip.classList.toggle('active');
-    activeFilters[filterKey] = chip.classList.contains('active');
-    renderStopsOnMap();
-}
+HÂY
+RT×ÐUU
+H]\ÂÛÛÝÛÛZ[\HØÝ[Y[Ù][[Y[RY
+	ÙÜÝ\YÝÜÓ\Ý	ÊNÂY
+XÛÛZ[\H]\Â]YÒ][HH[Â[Ý[ÛÛX\[XØ]ÜÊ
+HÂÛÛZ[\]Y\TÙ[XÝÜ[
+	ËYË[Ý\]ÜYË[Ý\XÝÛIÊKÜXXÚ
+[OÂ[Û\ÜÓ\Ý[[ÝJ	ÙYË[Ý\]Ü	Ë	ÙYË[Ý\XÝÛIÊNÂJNÂBÛÛZ[\]Y\TÙ[XÝÜ[
+	ËÝÜZ][IÊKÜXXÚ
+][HOÂ][KY][\Ý[\	ÙYÜÝ\	Ë[Ý[ÛJHÂYÒ][HH\ÎÂ\ËÛ\ÜÓ\ÝY
+	ÙYÙÚ[ÉÊNÂK]U[Ù\YXÝ[ÝÙYH	Û[ÝIÎÂJNÂ][KY][\Ý[\	ÙYÙ[	Ë[Ý[Û
+HÂ\ËÛ\ÜÓ\Ý[[ÝJ	ÙYÙÚ[ÉÊNÂÛX\[XØ]ÜÊ
+NÂYÒ][HH[ÂJNÂ][KY][\Ý[\	ÙYÛÝ\Ë[Ý[ÛJHÂK][Y][
 
-function resetFilters() {
-    document.querySelectorAll('.filter-chip').forEach(c => {
-        c.classList.add('active');
-        activeFilters[c.dataset.filter] = true;
-    });
-    renderStopsOnMap();
-}
+NÂK]U[Ù\ÜYXÝH	Û[ÝIÎÂY
+YYÒ][HYÒ][HOOH\ÊH]\ÂÛX\[XØ]ÜÊ
+NÂÛÛÝXÝH\ËÙ]Ý[[ÐÛY[XÝ
 
-// ===== GROUP MANAGEMENT =====
-async function createGroup() {
-    const name = prompt('Gruppenname:', 'Neue Gruppe');
-    if (!name) return;
-    const colors = ['#3DB88C','#C8956C','#6BA3D6','#D66B6B','#9B59B6','#E67E22','#1ABC9C','#A0A060'];
-    const color = colors[groupData.length % colors.length];
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/group', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ name, color })
-        });
-        if (resp.ok) {
-            const g = await resp.json();
-            groupData.push(g);
-            openGroups[g.id] = true;
-            renderGroupedStops();
-            updateGroupSelect();
-        }
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
+NÂÛÛÝZYHHXÝÜ
+ÈXÝZYÚÈÂY
+KÛY[HZYJHÂ\ËÛ\ÜÓ\ÝY
+	ÙYË[Ý\]Ü	ÊNÂH[ÙHÂ\ËÛ\ÜÓ\ÝY
+	ÙYË[Ý\XÝÛIÊNÂBJNÂ][KY][\Ý[\	ÙYÛX]IË[Ý[Û
+HÂ\ËÛ\ÜÓ\Ý[[ÝJ	ÙYË[Ý\]Ü	Ë	ÙYË[Ý\XÝÛIÊNÂJNÂ][KY][\Ý[\	ÙÜ	Ë[Ý[ÛJHÂK][Y][
 
-async function renameGroup(gid) {
-    const g = groupData.find(x => x.id === gid);
-    if (!g) return;
-    const name = prompt('Neuer Name:', g.name);
-    if (!name || name === g.name) return;
-    try {
-        await fetch('/api/trip/' + TRIP_ID + '/group/' + gid, {
-            method: 'PUT', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ name })
-        });
-        g.name = name;
-        renderGroupedStops();
-        updateGroupSelect();
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
+NÂÛX\[XØ]ÜÊ
+NÂY
+YÒ][H	YÒ][HOOH\ÊHÂÛÛÝXÝH\ËÙ]Ý[[ÐÛY[XÝ
 
-async function deleteGroup(gid) {
-    if (!confirm('Gruppe loeschen? Stops bleiben erhalten.')) return;
-    try {
-        await fetch('/api/trip/' + TRIP_ID + '/group/' + gid, { method: 'DELETE' });
-        groupData = groupData.filter(g => g.id !== gid);
-        stopData.forEach(s => { if (s.group_id === gid) s.group_id = null; });
-        renderGroupedStops();
-        updateGroupSelect();
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
+NÂÛÛÝZYHHXÝÜ
+ÈXÝZYÚÈÂÛÛÝ[Ù\YÜHHKÛY[HZYNÂY
+[Ù\YÜJHÂ\Ë\[ÙK[Ù\YÜJYÒ][K\ÊNÂH[ÙHÂ\Ë\[ÙK[Ù\YÜJYÒ][K\Ë^ÚX[ÊNÂBËÈ\]HÜÝ\\ÜÚYÛY[YÜY[ÈY\[ÜÝ\ÛÛÝ]ÑÜÝ\YH\Ë]\Ù]ÜÝ\[ÂÛÛÝYÒYH\ÙR[
+YÒ][K]\Ù]Y
+NÂÛÛÝYÔÝÜHÝÜ]K[
+ÈOËYOOHYÒY
+NÂY
+YÔÝÜ	Ý[ÊYÔÝÜÜÝ\ÚY	ÉÊHOOHÝ[Ê]ÑÜÝ\Y	ÉÊJHÂ]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜÝÜÉÈ
+ÈYÒY
+È	ËÙÜÝ\	ËÂY]Ù	ÔU	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÈÜÝ\ÚY]ÑÜÝ\Y[JBJNÂYÔÝÜÜÝ\ÚYH]ÑÜÝ\YÈ\ÙR[
+]ÑÜÝ\Y
+H[ÂBØ]SÜ\
+NÂBJNÂJNÂB\Þ[È[Ý[ÛØ]SÜ\
+HÂÛÛÝ][\ÈHØÝ[Y[]Y\TÙ[XÝÜ[
+	ËÝÜZ][IÊNÂÛÛÝÜ\H\^KÛJ][\ÊKX\
+[O\ÙR[
+[]\Ù]Y
+JNÂHÂ]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜ[Ü\ËÂY]Ù	ÔÔÕ	ËXY\ÎÉÐÛÛ[U\IÎØ\XØ][ÛÚÛÛßKÙNÓÓÝ[ÚYJÈÜ\JBJNÂØØ][Û[ØY
 
-async function autoGroupStops() {
-    if (!confirm('Stops automatisch nach Reisetagen gruppieren? Bestehende Gruppen werden ersetzt.')) return;
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/auto-group', { method: 'POST' });
-        if (resp.ok) { location.reload(); }
-        else { const d = await resp.json(); alert(d.error || 'Fehler'); }
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
+NÂHØ]Ú
+JHÈÛÛÛÛK\Ü	Ô[Ü\Z[YËJNÈBBËÈOOOOHÒTSÈOOOOB\Þ[È[Ý[ÛÙÙÛTÚ\J
+HÂHÂÛÛÝ\ÜH]ØZ]]Ú
+	ËØ\KÝ\ÉÈ
+ÈTÒQ
+È	ËÜÚ\IËÈY]Ù	ÔÔÕ	ÈJNÂÛÛÝ]HH]ØZ]\ÜÛÛ
+NÂÛÛÝHØÝ[Y[Ù][[Y[RY
+	ÜÚ\PÊNÂÛÛÝ\ÞHØÝ[Y[Ù][[Y[RY
+	ÜÚ\U\Þ	ÊNÂÛÛÝ\[]HØÝ[Y[Ù][[Y[RY
+	ÜÚ\U\[]	ÊNÂY
+]KÚ\WÝÚÙ[HÂ[\SH	ÏHÛ\ÜÏHHK\Ú\KY[ÚOÙ]Z[	ÎÂÛ\ÜÓ\ÝY
+	Ø\ÝXØÙ\ÜÉÊNÈÛ\ÜÓ\Ý[[ÝJ	Ø[Ý][K[YÚ	ÊNÂ\[][YHH]KÚ\WÝ\È\ÞÝ[K\Ü^HH	ØØÚÉÎÂH[ÙHÂ[\SH	ÏHÛ\ÜÏHHK\Ú\HÚOZ[[ÎÂÛ\ÜÓ\Ý[[ÝJ	Ø\ÝXØÙ\ÜÉÊNÈÛ\ÜÓ\ÝY
+	Ø[Ý][K[YÚ	ÊNÂ\ÞÝ[K\Ü^HH	ÛÛIÎÂBHØ]Ú
+JHÈ[\
+	ÑZ\	È
+ÈKY\ÜØYÙJNÈBB[Ý[ÛÛÜTÚ\U\
 
-function updateGroupSelect() {
-    const sel = document.getElementById('newStopGroup');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">Keine Gruppe</option>';
-    groupData.forEach(g => {
-        sel.innerHTML += '<option value="' + g.id + '">' + escHtml(g.name) + '</option>';
-    });
-}
+HÂÛÛÝ[]HØÝ[Y[Ù][[Y[RY
+	ÜÚ\U\[]	ÊNÂ]YØ]ÜÛ\Ø\Ü]U^
+[][YJK[
 
-// ===== GOOGLE MAPS LINK =====
-function updateGoogleMapsLink() {
-    const link = document.getElementById('googleMapsLink');
-    if (!link || stopData.length < 2) return;
-    const origin = stopData[0].lat + ',' + stopData[0].lng;
-    const dest = stopData[stopData.length - 1].lat + ',' + stopData[stopData.length - 1].lng;
-    const waypoints = stopData.slice(1, -1).map(s => s.lat + ',' + s.lng).join('|');
-    let url = 'https://www.google.com/maps/dir/?api=1&origin=' + origin + '&destination=' + dest;
-    if (waypoints) url += '&waypoints=' + waypoints;
-    url += '&travelmode=driving';
-    link.href = url;
-}
+HOÂÛÛÝH[]^[[Y[ÚX[ÎÂ[\SH	ÏHÛ\ÜÏHHKXÚXÚÈÚOÎÂÙ][Y[Ý]
 
-// ===== STOP CRUD =====
-async function addStop() {
-    const name = document.getElementById('newStopName').value.trim();
-    const lat = parseFloat(document.getElementById('newStopLat').value);
-    const lng = parseFloat(document.getElementById('newStopLng').value);
-    if (!name || isNaN(lat) || isNaN(lng)) { alert('Bitte Name und Koordinaten angeben.'); return; }
-    const body = {
-        name, lat, lng,
-        stop_category: document.getElementById('newStopCategory').value,
-        route_type: document.getElementById('newStopRouteType').value,
-        duration_minutes: document.getElementById('newStopDuration').value || 0,
-        hike_id: document.getElementById('newStopHike').value || null,
-        description: document.getElementById('newStopDescription').value,
-        group_id: document.getElementById('newStopGroup').value || null,
-    };
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/stop', {
-            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
-        });
-        if (resp.ok) location.reload();
-        else { const d = await resp.json(); alert(d.error || 'Fehler'); }
-    } catch(e) { alert('Netzwerkfehler: ' + e.message); }
-}
 
-async function deleteStop(stopId) {
-    if (!confirm('Stop wirklich entfernen?')) return;
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, { method: 'DELETE' });
-        if (resp.ok) location.reload();
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
+HOÈ[\SH	ÏHÛ\ÜÏHHKXÛ\Ø\ÚOÎÈK
+NÂJNÂBËÈOOOOHPÑHÑPTÒOOOOB[Ý[ÛÙ]\XÙTÙX\Ú
 
-function editStop(stopId) {
-    const stop = stopData.find(s => s.id === stopId);
-    if (!stop) return;
-    const newName = prompt('Neuer Name:', stop.name);
-    if (newName === null) return;
-    fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, {
-        method: 'PUT', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ name: newName })
-    }).then(r => { if (r.ok) location.reload(); });
-}
+HÂÛÛÝÙX\Ú[]HØÝ[Y[Ù][[Y[RY
+	ÜXÙTÙX\Ú	ÊNÂÛÛÝÙX\Ú\Ý[ÈHØÝ[Y[Ù][[Y[RY
+	ÜÙX\Ú\Ý[ÉÊNÂY
+\ÙX\Ú[]
+H]\Â]ÙX\Ú[Y[Ý]H[ÂÙX\Ú[]Y][\Ý[\	Ú[]	Ë[Ý[Û
+HÂÛX\[Y[Ý]
+ÙX\Ú[Y[Ý]
+NÂÛÛÝHH\Ë[YK[J
+NÂY
+K[ÝHÈÙX\Ú\Ý[ËÝ[K\Ü^HH	ÛÛIÎÈ]\ÈBÙX\Ú[Y[Ý]HÙ][Y[Ý]
 
-async function recalculateRoutes() {
-    const btn = event.target.closest('button');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/recalculate-routes', { method: 'POST' });
-        if (resp.ok) location.reload();
-    } catch(e) { alert('Fehler: ' + e.message); }
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
-}
 
-// ===== DRAG & DROP =====
-function setupDragDrop() {
-    if (!IS_AUTH) return;
-    const container = document.getElementById('groupedStopsList');
-    if (!container) return;
-    let dragItem = null;
-
-    container.querySelectorAll('.stop-item').forEach(item => {
-        item.addEventListener('dragstart', function(e) {
-            dragItem = this;
-            this.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-        });
-        item.addEventListener('dragend', function() {
-            this.classList.remove('dragging');
-            dragItem = null;
-        });
-        item.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        });
-        item.addEventListener('drop', function(e) {
-            e.preventDefault();
-            if (dragItem && dragItem !== this) {
-                const allItems = [...container.querySelectorAll('.stop-item')];
-                const fromIdx = allItems.indexOf(dragItem);
-                const toIdx = allItems.indexOf(this);
-                if (fromIdx < toIdx) this.parentNode.insertBefore(dragItem, this.nextSibling);
-                else this.parentNode.insertBefore(dragItem, this);
-
-                // Update group assignment if dropped into different group
-                const newGroupId = this.dataset.group || null;
-                const dragId = parseInt(dragItem.dataset.id);
-                const dragStop = stopData.find(s => s.id === dragId);
-                if (dragStop && String(dragStop.group_id || '') !== String(newGroupId || '')) {
-                    fetch('/api/trip/' + TRIP_ID + '/stop/' + dragId + '/group', {
-                        method: 'PUT', headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({ group_id: newGroupId || null })
-                    });
-                    dragStop.group_id = newGroupId ? parseInt(newGroupId) : null;
-                }
-                saveOrder();
-            }
-        });
-    });
-}
-
-async function saveOrder() {
-    const items = document.querySelectorAll('.stop-item');
-    const order = Array.from(items).map(el => parseInt(el.dataset.id));
-    try {
-        await fetch('/api/trip/' + TRIP_ID + '/reorder', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ order })
-        });
-        location.reload();
-    } catch(e) { console.error('Reorder failed:', e); }
-}
-
-// ===== SHARING =====
-async function toggleShare() {
-    try {
-        const resp = await fetch('/api/trip/' + TRIP_ID + '/share', { method: 'POST' });
-        const data = await resp.json();
-        const btn = document.getElementById('shareBtn');
-        const urlBox = document.getElementById('shareUrlBox');
-        const urlInput = document.getElementById('shareUrlInput');
-        if (data.share_token) {
-            btn.innerHTML = '<i class="bi bi-share-fill"></i> Geteilt';
-            btn.classList.add('btn-success'); btn.classList.remove('btn-outline-light');
-            urlInput.value = data.share_url; urlBox.style.display = 'block';
-        } else {
-            btn.innerHTML = '<i class="bi bi-share"></i> Teilen';
-            btn.classList.remove('btn-success'); btn.classList.add('btn-outline-light');
-            urlBox.style.display = 'none';
-        }
-    } catch(e) { alert('Fehler: ' + e.message); }
-}
-
-function copyShareUrl() {
-    const input = document.getElementById('shareUrlInput');
-    navigator.clipboard.writeText(input.value).then(() => {
-        const btn = input.nextElementSibling;
-        btn.innerHTML = '<i class="bi bi-check"></i>';
-        setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
-    });
-}
-
-// ===== PLACE SEARCH =====
-function setupPlaceSearch() {
-    const searchInput = document.getElementById('placeSearch');
-    const searchResults = document.getElementById('searchResults');
-    if (!searchInput) return;
-    let searchTimeout = null;
-
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        const q = this.value.trim();
-        if (q.length < 2) { searchResults.style.display = 'none'; return; }
-        searchTimeout = setTimeout(() => {
-            fetch('/api/geocode?q=' + encodeURIComponent(q))
-                .then(r => r.json())
-                .then(results => {
-                    if (results.length === 0) {
-                        searchResults.innerHTML = '<div class="px-3 py-2 text-muted small">Keine Ergebnisse</div>';
-                    } else {
-                        searchResults.innerHTML = results.map(r =>
-                            '<div class="px-3 py-2 search-result-item" style="cursor:pointer;border-bottom:1px solid #2D3E4F;" ' +
-                            'data-name="' + r.short_name.replace(/"/g, '&quot;') + '" data-lat="' + r.lat + '" data-lng="' + r.lng + '">' +
-                            '<strong class="text-light">' + escHtml(r.short_name) + '</strong><br><small class="text-muted">' + escHtml(r.name.substring(0, 60)) + '</small></div>'
-                        ).join('');
-                    }
-                    searchResults.style.display = 'block';
-                });
-        }, 300);
-    });
-    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Escape') searchResults.style.display = 'none'; });
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) searchResults.style.display = 'none';
-    });
-    searchResults.addEventListener('click', function(e) {
-        const item = e.target.closest('.search-result-item');
-        if (!item) return;
-        document.getElementById('newStopName').value = item.dataset.name;
-        document.getElementById('newStopLat').value = item.dataset.lat;
-        document.getElementById('newStopLng').value = item.dataset.lng;
-        searchResults.style.display = 'none';
-        searchInput.value = '';
-        if (map) {
-            const sel = L.marker([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], {
-                icon: L.divIcon({
-                    html: '<div style="background:#E0A060;color:white;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">?</div>',
-                    className: '', iconSize: [24, 24], iconAnchor: [12, 12]
-                })
-            }).addTo(map).bindPopup('<strong>' + item.dataset.name + '</strong><br><small>Noch nicht hinzugefuegt</small>').openPopup();
-            map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 12);
-            setTimeout(() => map.removeLayer(sel), 10000);
-        }
-    });
-}
-
-function setupHikeSelect() {
-    const sel = document.getElementById('newStopHike');
-    if (!sel) return;
-    sel.addEventListener('change', function() {
-        const opt = this.options[this.selectedIndex];
-        if (opt.value) {
-            document.getElementById('newStopLat').value = opt.dataset.lat;
-            document.getElementById('newStopLng').value = opt.dataset.lng;
-            if (!document.getElementById('newStopName').value) {
-                document.getElementById('newStopName').value = opt.textContent.trim().split('(')[0].trim();
-            }
-            document.getElementById('newStopCategory').value = 'wanderung';
-        }
-    });
-}
-</script>
-{% endblock %}
+HOÂ]Ú
+	ËØ\KÙÙ[ØÛÙOÜOIÈ
+È[ÛÙUTPÛÛ\Û[
+JJB[OÛÛ
+JB[\Ý[ÈOÂY
+\Ý[Ë[ÝOOH
+HÂÙX\Ú\Ý[Ë[\SH	Ï]Û\ÜÏHLÈKL^[]]YÛX[ÙZ[H\ÙX\ÜÙOÙ]ÎÂH[ÙHÂÙX\Ú\Ý[Ë[\SH\Ý[ËX\
+O	Ï]Û\ÜÏHLÈKLÙX\Ú\\Ý[Z][HÝ[OHÝ\ÛÜÚ[\ØÜ\XÝÛN\ÛÛYÌÑMÈ	È
+Â	Ù]K[[YOHÈ
+ÈÚÜÛ[YK\XÙJÈÙË	É][ÝÉÊH
+È	È]K[]HÈ
+È]
+È	È]K[ÏHÈ
+ÈÈ
+È	ÈÈ
+Â	ÏÝÛÈÛ\ÜÏH^[YÚÈ
+È\ØÒ[
+ÚÜÛ[YJH
+È	ÏÜÝÛÏÛX[Û\ÜÏH^[]]YÈ
+È\ØÒ[
+[YKÝXÝ[Ê
+
+JH
+È	ÏÜÛX[Ù]Â
+KÚ[	ÉÊNÂBÙX\Ú\Ý[ËÝ[K\Ü^HH	ØØÚÉÎÂJNÂKÌ
+NÂJNÂ6V&6çWBæFDWfVçDÆ7FVæW"v¶WF÷vârÂgVæ7FöâR²bRæ¶WÓÓÒtW66Rr6V&6&W7VÇG2ç7GÆRæF7ÆÒvæöæRs²Ò°¢Fö7VÖVçBæFDWfVçDÆ7FVæW"v6Æ6²rÂgVæ7FöâR°¢b6V&6çWBæ6öçFç2RçF&vWBbb6V&6&W7VÇG2æ6öçFç2RçF&vWB6V&6&W7VÇG2ç7GÆRæF7ÆÒvæöæRs°¢Ò°¢6V&6&W7VÇG2æFDWfVçDÆ7FVæW"v6Æ6²rÂgVæ7FöâR°¢6öç7BFVÒÒRçF&vWBæ6Æ÷6W7Brç6V&6×&W7VÇBÖFVÒr°¢bFVÒ&WGW&ã°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷æÖRrçfÇVRÒFVÒæFF6WBææÖS°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷ÆBrçfÇVRÒFVÒæFF6WBæÆC°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷ÆærrçfÇVRÒFVÒæFF6WBæÆæs°¢6V&6&W7VÇG2ç7GÆRæF7ÆÒvæöæRs°¢6V&6çWBçfÇVRÒrs°¢bÖ°¢6öç7B6VÂÒÂæÖ&¶W"·'6TfÆöBFVÒæFF6WBæÆBÂ'6TfÆöBFVÒæFF6WBæÆærÒÂ°¢6öã¢ÂæFd6öâ°¢FÖÃ¢sÆFb7GÆSÒ&&6¶w&÷VæC¢4Sc¶6öÆ÷#§vFS·vGF£#G¶VvC£#G¶&÷&FW"×&FW3£SS¶F7Æ¦fÆW¶ÆvâÖFV×3¦6VçFW#¶§W7FgÖ6öçFVçC¦6VçFW#¶föçB×6¦S£g¶&÷&FW#£'6öÆBvFS¶&÷×6F÷s£'g&v&ÃÃÃãB²#ãóÂöFcârÀ¢6Æ74æÖS¢rrÂ6öå6¦S¢³#BÂ#EÒÂ6öäæ6÷#¢³"Â%Ð¢Ò¢ÒæFEFòÖæ&æE÷WsÇ7G&öæsâr²FVÒæFF6WBææÖR²sÂ÷7G&öæsãÆ'#ãÇ6ÖÆÃäæö6æ6Bç§VvVgVVwCÂ÷6ÖÆÃâræ÷Vå÷W°¢Öç6WEfWr·'6TfÆöBFVÒæFF6WBæÆBÂ'6TfÆöBFVÒæFF6WBæÆærÒÂ"°¢6WEFÖV÷WBÓâÖç&VÖ÷fTÆW"6VÂÂ°¢Ð¢Ò°§Ð ¦gVæ7Föâ6WGW¶U6VÆV7B°¢6öç7B6VÂÒFö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷¶Rr°¢b6VÂ&WGW&ã°¢6VÂæFDWfVçDÆ7FVæW"v6ævRrÂgVæ7Föâ°¢6öç7B÷BÒF2æ÷Föç5·F2ç6VÆV7FVDæFWÓ°¢b÷BçfÇVR°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷ÆBrçfÇVRÒ÷BæFF6WBæÆC°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷ÆærrçfÇVRÒ÷BæFF6WBæÆæs°¢bFö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷æÖRrçfÇVR°¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷æÖRrçfÇVRÒ÷BçFWD6öçFVçBçG&Òç7ÆBrr³ÒçG&Ò°¢Ð¢Fö7VÖVçBævWDVÆVÖVçD'BvæWu7F÷6FVv÷'rçfÇVRÒwvæFW'Værs°¢Ð¢Ò°§Ð£Â÷67&Cà§²RVæF&Æö6²WÐ 
