@@ -12,7 +12,8 @@
     .stop-item.drag-over-top::before { content: ''; position: absolute; top: -16px; left: 0; right: 0; height: 3px; background: var(--color-green); border-radius: 2px; }
     .stop-item.drag-over-bottom { margin-bottom: 28px; transition: margin 0.15s ease; }
     .stop-item.drag-over-bottom::after { content: ''; position: absolute; bottom: -16px; left: 0; right: 0; height: 3px; background: var(--color-green); border-radius: 2px; }
-    .group-body-empty { padding: 18px 10px; text-align: center; color: #5A6A7A; font-size: 0.85rem; border: 2px dashed #2D3E4F; border-radius: 0 0 8px 8px; margin: 0 4px 4px 4px; }
+    .group-body-empty { padding: 18px 10px; text-align: center; color: #5A6A7A; font-size: 0.85rem; border: 2px dashed #2D3E4F; border-radius: 0 0 8px 8px; margin: 0 4px 4px 4px; transition: all 0.2s; }
+    .group-body-empty.drag-hover { border-color: var(--color-green); background-color: rgba(61,184,140,0.08); color: var(--color-green); }
     .stop-cat-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; }
     .route-connector { padding: 2px 0 2px 20px; margin-left: 14px; border-left: 2px dashed #C8956C; font-size: 0.8rem; color: #A0B0C0; }
     .route-connector .route-detail { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
@@ -340,6 +341,7 @@ function renderGroupedStops() {
         html += '<span class="group-meta">' + dist + ' km</span>';
         if (IS_AUTH) {
             html += '<div class="group-actions">';
+            html += '<button class="btn btn-outline-light" onclick="event.stopPropagation();addStopToGroup(' + g.id + ')" title="Stop hinzufuegen"><i class="bi bi-plus-lg"></i></button>';
             html += '<button class="btn btn-outline-light" onclick="event.stopPropagation();renameGroup(' + g.id + ')" title="Umbenennen"><i class="bi bi-pencil"></i></button>';
             html += '<button class="btn btn-outline-danger" onclick="event.stopPropagation();deleteGroup(' + g.id + ')" title="Loeschen"><i class="bi bi-trash"></i></button>';
             html += '</div>';
@@ -646,6 +648,22 @@ async function recalculateRoutes() {
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
 }
 
+// ===== ADD STOP TO GROUP (via + button) =====
+function addStopToGroup(groupId) {
+    const groupSelect = document.getElementById('newStopGroup');
+    if (groupSelect) {
+        groupSelect.value = String(groupId);
+    }
+    const form = document.getElementById('addStopForm');
+    if (form) {
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+            const searchInput = document.getElementById('placeSearch');
+            if (searchInput) searchInput.focus();
+        }, 400);
+    }
+}
+
 // ===== DRAG & DROP =====
 function setupDragDrop() {
     if (!IS_AUTH) return;
@@ -656,6 +674,9 @@ function setupDragDrop() {
     function clearIndicators() {
         container.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
             el.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        container.querySelectorAll('.drag-hover').forEach(el => {
+            el.classList.remove('drag-hover');
         });
     }
 
@@ -710,6 +731,37 @@ function setupDragDrop() {
                     });
                     dragStop.group_id = newGroupId ? parseInt(newGroupId) : null;
                 }
+                saveOrder();
+            }
+        });
+    });
+
+    // Allow dropping into empty groups
+    container.querySelectorAll('.group-body-empty').forEach(emptyZone => {
+        emptyZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!dragItem) return;
+            clearIndicators();
+            this.classList.add('drag-hover');
+        });
+        emptyZone.addEventListener('dragleave', function() {
+            this.classList.remove('drag-hover');
+        });
+        emptyZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            clearIndicators();
+            if (!dragItem) return;
+            const groupCard = this.closest('.group-card');
+            const newGroupId = groupCard ? groupCard.dataset.groupId : null;
+            const dragId = parseInt(dragItem.dataset.id);
+            const dragStop = stopData.find(s => s.id === dragId);
+            if (dragStop && newGroupId) {
+                fetch('/api/trip/' + TRIP_ID + '/stop/' + dragId + '/group', {
+                    method: 'PUT', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ group_id: parseInt(newGroupId) })
+                });
+                dragStop.group_id = parseInt(newGroupId);
                 saveOrder();
             }
         });
