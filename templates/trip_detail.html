@@ -4,68 +4,84 @@
 
 {% block extra_css %}
 <style>
-    #tripMap { height: 550px; }
-    .stop-item { background-color: #1A2332; border: 1px solid #2D3E4F; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: grab; transition: all 0.2s; }
+    #tripMap { height: 600px; }
+    .stop-item { background-color: #1A2332; border: 1px solid #2D3E4F; border-radius: 8px; padding: 10px 12px; margin-bottom: 0; cursor: grab; transition: all 0.2s; }
     .stop-item:hover { border-color: var(--color-green); }
     .stop-item.dragging { opacity: 0.5; }
-    .route-info { font-size: 0.8rem; color: #A0B0C0; padding: 4px 12px 4px 32px; }
-    .route-line { border-left: 2px dashed var(--color-copper); margin-left: 16px; padding: 2px 0 2px 16px; }
-    .stop-cat-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; }
-    .add-stop-card { border: 2px dashed #2D3E4F; border-radius: 8px; padding: 16px; margin-top: 12px; }
+    .stop-cat-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; }
+    .route-connector { padding: 2px 0 2px 20px; margin-left: 14px; border-left: 2px dashed #C8956C; font-size: 0.8rem; color: #A0B0C0; }
+    .route-connector .route-detail { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .group-card { border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+    .group-header { padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; transition: background-color 0.2s; }
+    .group-header:hover { filter: brightness(1.1); }
+    .group-header .group-title { font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+    .group-header .group-meta { font-size: 0.75rem; opacity: 0.8; }
+    .group-body { padding: 8px 10px; background-color: #0D1B2A; }
+    .group-body.collapsed { display: none; }
+    .chevron { transition: transform 0.2s; }
+    .chevron.collapsed { transform: rotate(-90deg); }
+    .add-stop-card { border: 2px dashed #2D3E4F; border-radius: 8px; padding: 14px; margin-top: 8px; }
     .add-stop-card:hover { border-color: var(--color-green); }
     .search-result-item:hover { background-color: #1A3040 !important; }
+    .filter-panel { background: #0D1B2A; border: 1px solid #2D3E4F; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+    .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; cursor: pointer; border: 1px solid #2D3E4F; background: #1A2332; color: #ccc; transition: all 0.15s; margin: 2px; }
+    .filter-chip.active { border-color: var(--color-green); color: white; background: rgba(61,184,140,0.2); }
+    .filter-chip:hover { border-color: var(--color-green); }
+    .ungrouped-section { border: 1px dashed #2D3E4F; border-radius: 10px; padding: 8px 10px; margin-bottom: 12px; }
+    .group-actions { display: flex; gap: 4px; }
+    .group-actions .btn { padding: 2px 6px; font-size: 0.7rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row mb-4">
+<div class="row mb-3">
     <div class="col-lg-8">
-        <h1>{{ trip.name }}</h1>
+        <h1 class="mb-1">{{ trip.name }}</h1>
         {% if trip.description %}
-        <p class="text-muted">{{ trip.description }}</p>
+        <p class="text-muted mb-1">{{ trip.description }}</p>
         {% endif %}
-        {% if trip.start_date %}
-        <p class="text-muted small">
+        <p class="text-muted small mb-0">
+            {% if trip.start_date %}
             <i class="bi bi-calendar"></i> {{ trip.start_date }}{% if trip.end_date %} bis {{ trip.end_date }}{% endif %}
             &nbsp;|&nbsp;
+            {% endif %}
             <i class="bi bi-signpost-2"></i> {{ stops|length }} Stops
             &nbsp;|&nbsp;
             <i class="bi bi-arrow-left-right"></i> {{ trip.get_total_distance() }} km gesamt
         </p>
-        {% endif %}
     </div>
     {% if current_user.is_authenticated and not shared %}
     <div class="col-lg-4 text-lg-end">
         <div class="btn-group mb-2">
-            <a href="/trip/{{ trip.id }}/edit" class="btn btn-primary">
+            <a href="/trip/{{ trip.id }}/edit" class="btn btn-sm btn-primary">
                 <i class="bi bi-pencil"></i> Bearbeiten
             </a>
             <form method="POST" action="/trip/{{ trip.id }}/delete" style="display: inline;"
                   onsubmit="return confirm('Reise wirklich loeschen?')">
-                <button type="submit" class="btn btn-danger">
+                <button type="submit" class="btn btn-sm btn-danger">
                     <i class="bi bi-trash"></i> Loeschen
                 </button>
             </form>
         </div>
-        <div class="btn-group mb-2 ms-2">
-            <button class="btn btn-outline-light" onclick="toggleShare()" id="shareBtn" title="Teilen">
+        <div class="btn-group mb-2 ms-1">
+            <button class="btn btn-sm btn-outline-light" onclick="toggleShare()" id="shareBtn" title="Teilen">
                 <i class="bi bi-share"></i> {% if trip.share_token %}Geteilt{% else %}Teilen{% endif %}
             </button>
         </div>
         <div class="btn-group mb-2">
             <div class="dropdown">
-                <button class="btn btn-outline-light dropdown-toggle" data-bs-toggle="dropdown">
+                <button class="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown">
                     <i class="bi bi-download"></i> Export
                 </button>
                 <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/gpx"><i class="bi bi-geo-alt"></i> GPX Export</a></li>
-                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/ical"><i class="bi bi-calendar-event"></i> Kalender (iCal)</a></li>
-                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/pdf"><i class="bi bi-file-earmark-text"></i> Reiseplan (HTML)</a></li>
+                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/gpx"><i class="bi bi-geo-alt"></i> GPX</a></li>
+                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/ical"><i class="bi bi-calendar-event"></i> iCal</a></li>
+                    <li><a class="dropdown-item" href="/trip/{{ trip.id }}/pdf"><i class="bi bi-file-earmark-text"></i> HTML</a></li>
                 </ul>
             </div>
         </div>
         {% if trip.share_token %}
-        <div class="mt-2" id="shareUrlBox">
+        <div class="mt-1" id="shareUrlBox">
             <div class="input-group input-group-sm">
                 <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
                        value="{{ url_for('shared_trip', token=trip.share_token, _external=True) }}" id="shareUrlInput" readonly>
@@ -75,7 +91,7 @@
             </div>
         </div>
         {% else %}
-        <div class="mt-2" id="shareUrlBox" style="display:none;">
+        <div class="mt-1" id="shareUrlBox" style="display:none;">
             <div class="input-group input-group-sm">
                 <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
                        id="shareUrlInput" readonly>
@@ -100,173 +116,141 @@
 
 <div class="row">
     <!-- Map -->
-    <div class="col-lg-7 mb-4">
+    <div class="col-lg-7 mb-3">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">&#x1F5FA;&#xFE0F; Reisekarte</h5>
-                {% if stops|length > 1 %}
-                <div class="btn-group btn-group-sm">
-                    <a id="googleMapsLink" href="#" target="_blank" class="btn btn-outline-light" title="Route in Google Maps oeffnen">
-                        <i class="bi bi-map"></i> Google Maps
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0">&#x1F5FA;&#xFE0F; Reisekarte</h6>
+                <div class="d-flex gap-1">
+                    {% if stops|length > 1 %}
+                    <a id="googleMapsLink" href="#" target="_blank" class="btn btn-outline-light btn-sm" title="Google Maps">
+                        <i class="bi bi-map"></i>
                     </a>
                     {% if current_user.is_authenticated and not shared %}
-                    <button class="btn btn-secondary" onclick="recalculateRoutes()">
-                        <i class="bi bi-arrow-repeat"></i> Routen neu berechnen
+                    <button class="btn btn-secondary btn-sm" onclick="recalculateRoutes()">
+                        <i class="bi bi-arrow-repeat"></i>
                     </button>
                     {% endif %}
-                </div>
-                {% endif %}
+                    {% endif %}
+                 </div>
             </div>
             <div class="card-body p-0">
                 <div id="tripMap"></div>
             </div>
         </div>
+
+        <!-- Map Filters -->
+        <div class="filter-panel mt-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted fw-bold"><i class="bi bi-funnel"></i> Kartenfilter</small>
+                <button class="btn btn-sm btn-link text-muted p-0" onclick="resetFilters()" style="font-size:0.75rem;">Alle anzeigen</button>
+            </div>
+            <div class="mb-1">
+                <span class="filter-chip active" data-filter="routes" onclick="toggleFilter(this)">
+                    <i class="bi bi-bezier2"></i> Wege
+                </span>
+                <span class="filter-chip active" data-filter="wanderung" onclick="toggleFilter(this)">&#x1F6B6; Wanderung</span>
+                <span class="filter-chip active" data-filter="stadt" onclick="toggleFilter(this)">&#x1F3D9;&#xFE0F; Stadt</span>
+                <span class="filter-chip active" data-filter="sehenswuerdigkeit" onclick="toggleFilter(this)">&#x1F4CD; POI</span>
+                <span class="filter-chip active" data-filter="unterkunft" onclick="toggleFilter(this)">&#x1F3E8; Unterkunft</span>
+                <span class="filter-chip active" data-filter="restaurant" onclick="toggleFilter(this)">&#x1F37D;&#xFE0F; Restaurant</span>
+                <span class="filter-chip active" data-filter="transport" onclick="toggleFilter(this)">&#x1F68C; Transport</span>
+            </div>
+        </div>
     </div>
 
     <!-- Stops List -->
-    <div class="col-lg-5 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">&#x1F4CD; Stops ({{ stops|length }})</h5>
-            </div>
-            <div class="card-body" style="max-height: 550px; overflow-y: auto;">
-                <div id="stopsList">
-                    {% for stop in stops %}
-                    <div class="stop-item" data-id="{{ stop.id }}" draggable="true">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <span class="me-1">{{ stop.get_category_icon() }}</span>
-                                <strong>{{ stop.position + 1 }}. {{ stop.name }}</strong>
-                                <span class="stop-cat-badge badge bg-secondary ms-1">{{ stop.get_category_label() }}</span>
-                            </div>
-                            {% if current_user.is_authenticated and not shared %}
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-light btn-sm" onclick="editStop({{ stop.id }})" title="Bearbeiten">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-outline-danger btn-sm" onclick="deleteStop({{ stop.id }})" title="Loeschen">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% if stop.description %}
-                        <small class="text-muted d-block mt-1">{{ stop.description }}</small>
-                        {% endif %}
-                        {% if stop.duration_minutes %}
-                        <small class="text-muted"><i class="bi bi-clock"></i> {{ stop.duration_minutes }} min Aufenthalt</small>
-                        {% endif %}
-                        {% if stop.hike_id and stop.hike %}
-                        <small class="d-block mt-1">
-                            <a href="/hike/{{ stop.hike_id }}"><i class="bi bi-signpost"></i> {{ stop.hike.name }}</a>
-                        </small>
-                        {% endif %}
-                    </div>
-                    {% if stop.distance_to_next_km %}
-                    {% set next_stop = stops[loop.index] if loop.index < stops|length else none %}
-                    <div class="route-line">
-                        <div class="route-info">
-                            {{ stop.get_route_type_icon() }}
-                            {{ stop.distance_to_next_km }} km
-                            {% if stop.duration_to_next_min %}| {{ stop.duration_to_next_min }} min{% endif %}
-                            {% if next_stop %}
-                            <a href="https://www.google.com/maps/dir/?api=1&origin={{ stop.lat }},{{ stop.lng }}&destination={{ next_stop.lat }},{{ next_stop.lng }}&travelmode=driving"
-                               target="_blank" class="ms-2 text-muted" title="In Google Maps oeffnen">
-                                <i class="bi bi-box-arrow-up-right"></i>
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
+    <div class="col-lg-5 mb-3">
+        {% if current_user.is_authenticated and not shared %}
+        <div class="d-flex gap-1 mb-2">
+            <button class="btn btn-sm btn-outline-light" onclick="createGroup()">
+                <i class="bi bi-folder-plus"></i> Neue Gruppe
+            </button>
+            <button class="btn btn-sm btn-outline-light" onclick="autoGroupStops()">
+                <i class="bi bi-calendar-week"></i> Auto-Gruppieren
+            </button>
+        </div>
+        {% endif %}
 
-                {% if current_user.is_authenticated and not shared %}
-                <div class="add-stop-card mt-3" id="addStopForm">
-                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Neuen Stop hinzufuegen</h6>
-                    <!-- Place Search -->
-                    <div class="mb-3 position-relative">
-                        <label for="placeSearch" class="form-label small"><i class="bi bi-search"></i> Ort suchen</label>
-                        <input type="text" class="form-control form-control-sm" id="placeSearch"
-                               placeholder="z.B. Innsbruck, Zugspitze, Gardasee..."
-                               autocomplete="off">
-                        <div id="searchResults" class="position-absolute w-100 bg-dark border border-secondary rounded-bottom shadow"
-                             style="display:none; z-index:1000; max-height:200px; overflow-y:auto;">
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label for="newStopName" class="form-label small">Name *</label>
-                        <input type="text" class="form-control form-control-sm" id="newStopName"
-                               placeholder="Name des Stops">
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label for="newStopLat" class="form-label small">Breitengrad *</label>
-                            <input type="number" step="0.000001" class="form-control form-control-sm"
-                                   id="newStopLat" placeholder="z.B. 47.2692">
-                        </div>
-                        <div class="col-6">
-                            <label for="newStopLng" class="form-label small">Laengengrad *</label>
-                            <input type="number" step="0.000001" class="form-control form-control-sm"
-                                   id="newStopLng" placeholder="z.B. 11.3933">
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label for="newStopCategory" class="form-label small">Kategorie</label>
-                            <select class="form-select form-select-sm" id="newStopCategory">
-                                <option value="sehenswuerdigkeit">&#x1F4CD; Sehenswuerdigkeit</option>
-                                <option value="wanderung">&#x1F6B6; Wanderung</option>
-                                <option value="stadt">&#x1F3D9;&#xFE0F; Stadt</option>
-                                <option value="unterkunft">&#x1F3E8; Unterkunft</option>
-                                <option value="restaurant">&#x1F37D;&#xFE0F; Restaurant</option>
-                                <option value="transport">&#x1F68C; Transport</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label for="newStopRouteType" class="form-label small">Anreise</label>
-                            <select class="form-select form-select-sm" id="newStopRouteType">
-                                <option value="car">&#x1F697; Auto</option>
-                                <option value="foot_hiking">&#x1F6B6; Zu Fuss</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label for="newStopDuration" class="form-label small">Aufenthalt (Minuten)</label>
-                        <input type="number" class="form-control form-control-sm" id="newStopDuration"
-                               placeholder="z.B. 60">
-                    </div>
-                    <div class="mb-2">
-                        <label for="newStopHike" class="form-label small">Wanderung verknuepfen</label>
-                        <select class="form-select form-select-sm" id="newStopHike">
-                            <option value="">-- optional --</option>
-                            {% for hike in hikes %}
-                            <option value="{{ hike.id }}" data-lat="{{ hike.start_lat }}" data-lng="{{ hike.start_lng }}">
-                                {{ hike.name }} ({{ hike.region }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label for="newStopDescription" class="form-label small">Beschreibung</label>
-                        <textarea class="form-control form-control-sm" id="newStopDescription" rows="2"
-                                  placeholder="Optional"></textarea>
-                    </div>
-                    <button class="btn btn-primary btn-sm w-100" onclick="addStop()">
-                        <i class="bi bi-plus"></i> Stop hinzufuegen
-                    </button>
-                    <small class="text-muted d-block mt-2">
-                        <i class="bi bi-info-circle"></i> Tipp: Klicke auf die Karte oder nutze die Ortsuche oben
-                    </small>
-                </div>
-                {% endif %}
-            </div>
+        <div id="groupedStopsList" style="max-height: 650px; overflow-y: auto;">
+            <!-- Rendered by JS -->
         </div>
 
+        {% if current_user.is_authenticated and not shared %}
+        <div class="add-stop-card mt-2" id="addStopForm">
+            <h6 class="mb-2"><i class="bi bi-plus-circle"></i> Stop hinzufuegen</h6>
+            <div class="mb-2 position-relative">
+                <input type="text" class="form-control form-control-sm" id="placeSearch"
+                       placeholder="Ort suchen (z.B. Innsbruck, Zugspitze...)" autocomplete="off">
+                <div id="searchResults" class="position-absolute w-100 bg-dark border border-secondary rounded-bottom shadow"
+                     style="display:none; z-index:1000; max-height:200px; overflow-y:auto;"></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-8">
+                    <input type="text" class="form-control form-control-sm" id="newStopName" placeholder="Name *">
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm" id="newStopCategory">
+                        <option value="sehenswuerdigkeit">&#x1F4CD; POI</option>
+                        <option value="wanderung">&#x1F6B6; Wanderung</option>
+                        <option value="stadt">&#x1F3D9;&#xFE0F; Stadt</option>
+                        <option value="unterkunft">&#x1F3E8; Unterkunft</option>
+                        <option value="restaurant">&#x1F37D;&#xFE0F; Restaurant</option>
+                        <option value="transport">&#x1F68C; Transport</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-4">
+                    <input type="number" step="0.000001" class="form-control form-control-sm"
+                           id="newStopLat" placeholder="Breitengrad">
+                </div>
+                <div class="col-4">
+                    <input type="number" step="0.000001" class="form-control form-control-sm"
+                           id="newStopLng" placeholder="Laengengrad">
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm" id="newStopRouteType">
+                        <option value="car">&#x1F697; Auto</option>
+                        <option value="foot_hiking">&#x1F6B6; Zu Fuss</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-4">
+                    <input type="number" class="form-control form-control-sm" id="newStopDuration" placeholder="Aufenthalt (min)">
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm" id="newStopGroup">
+                        <option value="">Keine Gruppe</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm" id="newStopHike">
+                        <option value="">Wanderung...</option>
+                        {% for hike in hikes %}
+                        <option value="{{ hike.id }}" data-lat="{{ hike.start_lat }}" data-lng="{{ hike.start_lng }}">
+                            {{ hike.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="mb-2">
+                <textarea class="form-control form-control-sm" id="newStopDescription" rows="1" placeholder="Beschreibung (optional)"></textarea>
+            </div>
+            <button class="btn btn-primary btn-sm w-100" onclick="addStop()">
+                <i class="bi bi-plus"></i> Stop hinzufuegen
+            </button>
+            <small class="text-muted d-block mt-1">
+                <i class="bi bi-info-circle"></i> Klicke auf die Karte oder nutze die Suche
+            </small>
+        </div>
+        {% endif %}
+
         {% if trip.notes %}
-        <div class="card mt-3">
-            <div class="card-header"><h5 class="mb-0">Notizen</h5></div>
-            <div class="card-body"><p class="mb-0 text-light">{{ trip.notes }}</p></div>
+        <div class="card mt-2">
+            <div class="card-header py-2"><h6 class="mb-0">Notizen</h6></div>
+            <div class="card-body py-2"><p class="mb-0 text-light small">{{ trip.notes }}</p></div>
         </div>
         {% endif %}
     </div>
@@ -274,36 +258,39 @@
 
 <script>
 const TRIP_ID = {{ trip.id }};
-const stopData = {{ stop_data|safe }};
 const IS_AUTH = {{ 'true' if current_user.is_authenticated and not shared else 'false' }};
+let stopData = {{ stop_data|safe }};
+let groupData = {{ group_data|safe }};
 let map, markers = [], routeLines = [];
+let activeFilters = { routes: true, wanderung: true, stadt: true, sehenswuerdigkeit: true, unterkunft: true, restaurant: true, transport: true };
+let openGroups = {}; // track which groups are open
 
 const CATEGORY_COLORS = {
-    'wanderung': '#3DB88C',
-    'stadt': '#C8956C',
-    'sehenswuerdigkeit': '#E0A060',
-    'unterkunft': '#6BA3D6',
-    'restaurant': '#D66B6B',
-    'transport': '#A0A0A0'
+    'wanderung': '#3DB88C', 'stadt': '#C8956C', 'sehenswuerdigkeit': '#E0A060',
+    'unterkunft': '#6BA3D6', 'restaurant': '#D66B6B', 'transport': '#A0A0A0'
 };
+const ROUTE_TYPE_LABELS = {
+    'car': '&#x1F697; Auto', 'foot_hiking': '&#x1F6B6; Zu Fuss', 'bike': '&#x1F6B2; Fahrrad', 'public_transport': '&#x1F68C; OEPNV'
+};
+
+function formatDuration(min) {
+    if (!min) return '';
+    if (min < 60) return min + ' min';
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m > 0 ? h+ 'h ' + m + 'min' : h + 'h';
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     if (!window.L) return;
-
-    // Default center: Europe
-    let center = [47.5, 13.0];
-    let zoom = 5;
-    if (stopData.length > 0) {
-        center = [stopData[0].lat, stopData[0].lng];
-        zoom = 8;
-    }
+    let center = [47.5, 13.0], zoom = 5;
+    if (stopData.length > 0) { center = [stopData[0].lat, stopData[0].lng]; zoom = 8; }
 
     map = L.map('tripMap').setView(center, zoom);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
-    // Click on map to set coordinates
     if (IS_AUTH) {
         map.on('click', function(e) {
             document.getElementById('newStopLat').value = e.latlng.lat.toFixed(6);
@@ -311,120 +298,185 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    renderGroupedStops();
     renderStopsOnMap();
     updateGoogleMapsLink();
-
-    // Place search with debounce
-    const searchInput = document.getElementById('placeSearch');
-    const searchResults = document.getElementById('searchResults');
-    let searchTimeout = null;
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const q = this.value.trim();
-            if (q.length < 2) { searchResults.style.display = 'none'; return; }
-            searchTimeout = setTimeout(() => {
-                fetch('/api/geocode?q=' + encodeURIComponent(q))
-                    .then(r => r.json())
-                    .then(results => {
-                        if (results.length === 0) {
-                            searchResults.innerHTML = '<div class="px-3 py-2 text-muted small">Keine Ergebnisse</div>';
-                        } else {
-                            searchResults.innerHTML = results.map(r =>
-                                '<div class="px-3 py-2 search-result-item" style="cursor:pointer;border-bottom:1px solid #2D3E4F;" ' +
-                                'data-name="' + r.short_name.replace(/"/g, '&quot;') + '" ' +
-                                'data-lat="' + r.lat + '" data-lng="' + r.lng + '">' +
-                                '<strong class="text-light">' + r.short_name + '</strong><br>' +
-                                '<small class="text-muted">' + r.name.substring(0, 60) + '</small>' +
-                                '</div>'
-                            ).join('');
-                        }
-                        searchResults.style.display = 'block';
-                    });
-            }, 300);
-        });
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') searchResults.style.display = 'none';
-        });
-        document.addEventListener('click', function(e) {
-            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
-                searchResults.style.display = 'none';
-            }
-        });
-        searchResults.addEventListener('click', function(e) {
-            const item = e.target.closest('.search-result-item');
-            if (!item) return;
-            document.getElementById('newStopName').value = item.dataset.name;
-            document.getElementById('newStopLat').value = item.dataset.lat;
-            document.getElementById('newStopLng').value = item.dataset.lng;
-            searchResults.style.display = 'none';
-            searchInput.value = '';
-            // Show selected location on map
-            if (map) {
-                const selMarker = L.marker([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], {
-                    icon: L.divIcon({
-                        html: '<div style="background:#E0A060;color:white;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">?</div>',
-                        className: '',
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12]
-                    })
-                }).addTo(map).bindPopup('<strong>' + item.dataset.name + '</strong><br><small>Noch nicht hinzugefuegt</small>').openPopup();
-                map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 12);
-                setTimeout(() => map.removeLayer(selMarker), 10000);
-            }
-        });
-    }
-
-    // Link hike selector to auto-fill coords
-    const hikeSelect = document.getElementById('newStopHike');
-    if (hikeSelect) {
-        hikeSelect.addEventListener('change', function() {
-            const opt = this.options[this.selectedIndex];
-            if (opt.value) {
-                document.getElementById('newStopLat').value = opt.dataset.lat;
-                document.getElementById('newStopLng').value = opt.dataset.lng;
-                if (!document.getElementById('newStopName').value) {
-                    document.getElementById('newStopName').value = opt.textContent.trim().split('(')[0].trim();
-                }
-                document.getElementById('newStopCategory').value = 'wanderung';
-            }
-        });
-    }
-
-    // Drag and drop reordering
-    setupDragDrop();
+    updateGroupSelect();
+    setupPlaceSearch();
+    setupHikeSelect();
 });
 
+// ===== RENDER GROUPED STOPS LIST =====
+function renderGroupedStops() {
+    const container = document.getElementById('groupedStopsList');
+    if (!container) return;
+    let html = '';
+
+    // Group stops
+    const grouped = {};
+    const ungrouped = [];
+    groupData.forEach(g => { grouped[g.id] = { ...g, stops: [] }; });
+    stopData.forEach(s => {
+        if (s.group_id && grouped[s.group_id]) {
+            grouped[s.group_id].stops.push(s);
+        } else {
+            ungrouped.push(s);
+        }
+    });
+
+    // Render each group
+    groupData.forEach(g => {
+        const grp = grouped[g.id];
+        const isOpen = openGroups[g.id] !== false; // default open
+        const dist = grp.stops.reduce((sum, s) => sum + (s.distance_to_next_km || 0), 0).toFixed(1);
+        html += '<div class="group-card" data-group-id="' + g.id + '">';
+        html += '<div class="group-header" style="background-color:' + g.color + '33; border-left: 4px solid ' + g.color + ';" onclick="toggleGroup(' + g.id + ')">';
+        html += '<div class="group-title"><i class="bi bi-chevron-down chevron' + (isOpen ? '' : ' collapsed') + '" id="chevron-' + g.id + '"></i> ' + escHtml(g.name) + ' <span class="badge bg-dark bg-opacity-50">' + grp.stops.length + '</span></div>';
+        html += '<div class="d-flex align-items-center gap-2">';
+        html += '<span class="group-meta">' + dist + ' km</span>';
+        if (IS_AUTH) {
+            html += '<div class="group-actions">';
+            html += '<button class="btn btn-outline-light" onclick="event.stopPropagation();renameGroup(' + g.id + ')" title="Umbenennen"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-outline-danger" onclick="event.stopPropagation();deleteGroup(' + g.id + ')" title="Loeschen"><i class="bi bi-trash"></i></button>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+        html += '<div class="group-body' + (isOpen ? '' : ' collapsed') + '" id="group-body-' + g.id + '">';
+        html += renderStopsList(grp.stops, g.id);
+        html += '</div></div>';
+    });
+
+    // Ungrouped stops
+    if (ungrouped.length > 0) {
+        html += '<div class="ungrouped-section">';
+        html += '<div class="d-flex justify-content-between align-items-center mb-1 px-1">';
+        html += '<small class="text-muted fw-bold"><i class="bi bi-collection"></i> Nicht gruppiert</small>';
+        html += '<span class="badge bg-secondary">' + ungrouped.length + '</span>';
+        html += '</div>';
+        html += renderStopsList(ungrouped, null);
+        html += '</div>';
+    }
+
+    if (stopData.length === 0) {
+        html = '<div class="text-center text-muted py-4"><i class="bi bi-signpost-2 fs-1"></i><br>Noch keine Stops. Fuege den ersten hinzu!</div>';
+    }
+
+    container.innerHTML = html;
+    if (IS_AUTH) setupDragDrop();
+}
+
+function renderStopsList(stops, groupId) {
+    let html = '';
+    stops.forEach((stop, i) => {
+        // Stop item
+        html += '<div class="stop-item" data-id="' + stop.id + '" data-group="' + (groupId || '') + '" draggable="' + (IS_AUTH ? 'true' : 'false') + '">';
+        html += '<div class="d-flex justify-content-between align-items-start">';
+        html += '<div class="d-flex align-items-center gap-1">';
+        html += '<span style="color:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '">' + stop.icon + '</span>';
+        html += '<strong class="small">' + (stop.position + 1) + '. ' + escHtml(stop.name) + '</strong>';
+        html += '<span class="stop-cat-badge badge" style="background:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '22;color:' + (CATEGORY_COLORS[stop.category] || '#3DB88C') + '">' + getCatLabel(stop.category) + '</span>';
+        html += '</div>';
+        if (IS_AUTH) {
+            html += '<div class="btn-group btn-group-sm">';
+            html += '<button class="btn btn-outline-light btn-sm py-0 px-1" onclick="editStop(' + stop.id + ')" title="Bearbeiten"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteStop(' + stop.id + ')" title="Loeschen"><i class="bi bi-trash"></i></button>';
+            html += '</div>';
+        }
+        html += '</div>';
+        if (stop.duration_minutes) {
+            html += '<small class="text-muted d-block mt-1"><i class="bi bi-clock"></i> ' + formatDuration(stop.duration_minutes) + ' Aufenthalt</small>';
+        }
+        html += '</div>';
+
+        // Route connector to next stop
+        if (stop.distance_to_next_km && i < stops.length - 1) {
+            html += '<div class="route-connector">';
+            html += '<div class="route-detail">';
+            html += '<span>' + (ROUTE_TYPE_LABELS[stop.route_type] || '&#x1F697; Auto') + '</span>';
+            html += '<span class="text-light">' + stop.distance_to_next_km + ' km</span>';
+            if (stop.duration_to_next_min) {
+                html += '<span class="text-light">' + formatDuration(stop.duration_to_next_min) + '</span>';
+            }
+            html += '</div></div>';
+        } else if (i < stops.length - 1) {
+            html += '<div style="height:4px;"></div>';
+        }
+    });
+    return html;
+}
+
+function getCatLabel(cat) {
+    const labels = { wanderung:'Wanderung', stadt:'Stadt', sehenswuerdigkeit:'POI', unterkunft:'Unterkunft', restaurant:'Restaurant', transport:'Transport' };
+    return labels[cat] || cat;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ===== GROUP TOGGLE =====
+function toggleGroup(gid) {
+    const body = document.getElementById('group-body-' + gid);
+    const chevron = document.getElementById('chevron-' + gid);
+    if (!body) return;
+    const isCollapsed = body.classList.contains('collapsed');
+    body.classList.toggle('collapsed');
+    chevron.classList.toggle('collapsed');
+    openGroups[gid] = isCollapsed; // was collapsed, now open
+
+    // Zoom map to group or full trip
+    const anyOpen = Object.values(openGroups).some(v => v === true);
+    if (isCollapsed) {
+        // Opening this group - zoom to its stops
+        const gStops = stopData.filter(s => s.group_id === gid);
+        if (gStops.length > 0) zoomToStops(gStops);
+    } else {
+        // Closing - if no groups open, show full trip
+        if (!anyOpen) zoomToStops(stopData);
+    }
+}
+
+function zoomToStops(stops) {
+    if (!map || stops.length === 0) return;
+    const bounds = [];
+    stops.forEach(s => {
+        if (activeFilters[s.category] !== false) bounds.push([s.lat, s.lng]);
+        if (s.route_to_next && s.route_to_next.coordinates && activeFilters.routes) {
+            s.route_to_next.coordinates.forEach(c => bounds.push([c[1], c[0]]));
+        }
+    });
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
+    else if (bounds.length === 1) map.setView(bounds[0], 12);
+}
+
+// ===== MAP RENDERING =====
 function renderStopsOnMap() {
     markers.forEach(m => map.removeLayer(m));
     routeLines.forEach(l => map.removeLayer(l));
     markers = [];
     routeLines = [];
-
     const bounds = [];
 
     stopData.forEach((stop, i) => {
+        if (!activeFilters[stop.category]) return;
         const color = CATEGORY_COLORS[stop.category] || '#3DB88C';
         const icon = L.divIcon({
-            html: '<div style="background:' + color + ';color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">' + (i + 1) + '</div>',
-            className: '',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
+            html: '<div style="background:' + color + ';color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">' + (i + 1) + '</div>',
+            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
         });
-
-        const marker = L.marker([stop.lat, stop.lng], { icon: icon })
-            .addTo(map)
-            .bindPopup('<strong>' + stop.icon + ' ' + stop.name + '</strong>');
+        const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(map)
+            .bindPopup('<strong>' + stop.icon + ' ' + escHtml(stop.name) + '</strong>' +
+                       (stop.duration_minutes ? '<br><small>' + formatDuration(stop.duration_minutes) + ' Aufenthalt</small>' : ''));
         markers.push(marker);
         bounds.push([stop.lat, stop.lng]);
 
-        // Draw route to next stop
-        if (stop.route_to_next && stop.route_to_next.coordinates) {
+        // Route line
+        if (activeFilters.routes && stop.route_to_next && stop.route_to_next.coordinates) {
             const coords = stop.route_to_next.coordinates.map(c => [c[1], c[0]]);
             const line = L.polyline(coords, {
-                color: color,
-                weight: 4,
-                opacity: 0.7,
+                color: color, weight: 4, opacity: 0.7,
                 dashArray: stop.route_type === 'foot_hiking' ? '8, 8' : null
             }).addTo(map);
             routeLines.push(line);
@@ -432,17 +484,96 @@ function renderStopsOnMap() {
         }
     });
 
-    if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [30, 30] });
-    } else if (bounds.length === 1) {
-        map.setView(bounds[0], 12);
-    }
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+    else if (bounds.length === 1) map.setView(bounds[0], 12);
 }
 
+// ===== FILTER CONTROLS =====
+function toggleFilter(chip) {
+    const filterKey = chip.dataset.filter;
+    chip.classList.toggle('active');
+    activeFilters[filterKey] = chip.classList.contains('active');
+    renderStopsOnMap();
+}
+
+function resetFilters() {
+    document.querySelectorAll('.filter-chip').forEach(c => {
+        c.classList.add('active');
+        activeFilters[c.dataset.filter] = true;
+    });
+    renderStopsOnMap();
+}
+
+// ===== GROUP MANAGEMENT =====
+async function createGroup() {
+    const name = prompt('Gruppenname:', 'Neue Gruppe');
+    if (!name) return;
+    const colors = ['#3DB88C','#C8956C','#6BA3D6','#D66B6B','#9B59B6','#E67E22','#1ABC9C','#A0A060'];
+    const color = colors[groupData.length % colors.length];
+    try {
+        const resp = await fetch('/api/trip/' + TRIP_ID + '/group', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ name, color })
+        });
+        if (resp.ok) {
+            const g = await resp.json();
+            groupData.push(g);
+            openGroups[g.id] = true;
+            renderGroupedStops();
+            updateGroupSelect();
+        }
+    } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function renameGroup(gid) {
+    const g = groupData.find(x => x.id === gid);
+    if (!g) return;
+    const name = prompt('Neuer Name:', g.name);
+    if (!name || name === g.name) return;
+    try {
+        await fetch('/api/trip/' + TRIP_ID + '/group/' + gid, {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ name })
+        });
+        g.name = name;
+        renderGroupedStops();
+        updateGroupSelect();
+    } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function deleteGroup(gid) {
+    if (!confirm('Gruppe loeschen? Stops bleiben erhalten.')) return;
+    try {
+        await fetch('/api/trip/' + TRIP_ID + '/group/' + gid, { method: 'DELETE' });
+        groupData = groupData.filter(g => g.id !== gid);
+        stopData.forEach(s => { if (s.group_id === gid) s.group_id = null; });
+        renderGroupedStops();
+        updateGroupSelect();
+    } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function autoGroupStops() {
+    if (!confirm('Stops automatisch nach Reisetagen gruppieren? Bestehende Gruppen werden ersetzt.')) return;
+    try {
+        const resp = await fetch('/api/trip/' + TRIP_ID + '/auto-group', { method: 'POST' });
+        if (resp.ok) { location.reload(); }
+        else { const d = await resp.json(); alert(d.error || 'Fehler'); }
+    } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+function updateGroupSelect() {
+    const sel = document.getElementById('newStopGroup');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Keine Gruppe</option>';
+    groupData.forEach(g => {
+        sel.innerHTML += '<option value="' + g.id + '">' + escHtml(g.name) + '</option>';
+    });
+}
+
+// ===== GOOGLE MAPS LINK =====
 function updateGoogleMapsLink() {
     const link = document.getElementById('googleMapsLink');
     if (!link || stopData.length < 2) return;
-    // Build Google Maps directions URL: origin / destination / waypoints
     const origin = stopData[0].lat + ',' + stopData[0].lng;
     const dest = stopData[stopData.length - 1].lat + ',' + stopData[stopData.length - 1].lng;
     const waypoints = stopData.slice(1, -1).map(s => s.lat + ',' + s.lng).join('|');
@@ -452,43 +583,28 @@ function updateGoogleMapsLink() {
     link.href = url;
 }
 
+// ===== STOP CRUD =====
 async function addStop() {
     const name = document.getElementById('newStopName').value.trim();
     const lat = parseFloat(document.getElementById('newStopLat').value);
     const lng = parseFloat(document.getElementById('newStopLng').value);
-    const category = document.getElementById('newStopCategory').value;
-    const routeType = document.getElementById('newStopRouteType').value;
-    const duration = document.getElementById('newStopDuration').value;
-    const hikeId = document.getElementById('newStopHike').value;
-    const description = document.getElementById('newStopDescription').value;
-
-    if (!name || isNaN(lat) || isNaN(lng)) {
-        alert('Bitte Name und Koordinaten angeben.');
-        return;
-    }
-
+    if (!name || isNaN(lat) || isNaN(lng)) { alert('Bitte Name und Koordinaten angeben.'); return; }
+    const body = {
+        name, lat, lng,
+        stop_category: document.getElementById('newStopCategory').value,
+        route_type: document.getElementById('newStopRouteType').value,
+        duration_minutes: document.getElementById('newStopDuration').value || 0,
+        hike_id: document.getElementById('newStopHike').value || null,
+        description: document.getElementById('newStopDescription').value,
+        group_id: document.getElementById('newStopGroup').value || null,
+    };
     try {
         const resp = await fetch('/api/trip/' + TRIP_ID + '/stop', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name, lat, lng,
-                stop_category: category,
-                route_type: routeType,
-                duration_minutes: duration || 0,
-                hike_id: hikeId || null,
-                description: description
-            })
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
         });
-        if (resp.ok) {
-            location.reload();
-        } else {
-            const data = await resp.json();
-            alert(data.error || 'Fehler beim Hinzufuegen');
-        }
-    } catch (err) {
-        alert('Netzwerkfehler: ' + err.message);
-    }
+        if (resp.ok) location.reload();
+        else { const d = await resp.json(); alert(d.error || 'Fehler'); }
+    } catch(e) { alert('Netzwerkfehler: ' + e.message); }
 }
 
 async function deleteStop(stopId) {
@@ -496,20 +612,16 @@ async function deleteStop(stopId) {
     try {
         const resp = await fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, { method: 'DELETE' });
         if (resp.ok) location.reload();
-    } catch (err) {
-        alert('Fehler: ' + err.message);
-    }
+    } catch(e) { alert('Fehler: ' + e.message); }
 }
 
 function editStop(stopId) {
-    // Simple edit via prompt for now
     const stop = stopData.find(s => s.id === stopId);
     if (!stop) return;
     const newName = prompt('Neuer Name:', stop.name);
     if (newName === null) return;
     fetch('/api/trip/' + TRIP_ID + '/stop/' + stopId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ name: newName })
     }).then(r => { if (r.ok) location.reload(); });
 }
@@ -517,25 +629,23 @@ function editStop(stopId) {
 async function recalculateRoutes() {
     const btn = event.target.closest('button');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Berechne...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     try {
         const resp = await fetch('/api/trip/' + TRIP_ID + '/recalculate-routes', { method: 'POST' });
         if (resp.ok) location.reload();
-    } catch (err) {
-        alert('Fehler: ' + err.message);
-    }
+    } catch(e) { alert('Fehler: ' + e.message); }
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Routen neu berechnen';
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
 }
 
+// ===== DRAG & DROP =====
 function setupDragDrop() {
     if (!IS_AUTH) return;
-    const list = document.getElementById('stopsList');
-    if (!list) return;
-
+    const container = document.getElementById('groupedStopsList');
+    if (!container) return;
     let dragItem = null;
 
-    list.querySelectorAll('.stop-item').forEach(item => {
+    container.querySelectorAll('.stop-item').forEach(item => {
         item.addEventListener('dragstart', function(e) {
             dragItem = this;
             this.classList.add('dragging');
@@ -552,13 +662,22 @@ function setupDragDrop() {
         item.addEventListener('drop', function(e) {
             e.preventDefault();
             if (dragItem && dragItem !== this) {
-                const items = [...list.querySelectorAll('.stop-item')];
-                const fromIdx = items.indexOf(dragItem);
-                const toIdx = items.indexOf(this);
-                if (fromIdx < toIdx) {
-                    this.parentNode.insertBefore(dragItem, this.nextSibling);
-                } else {
-                    this.parentNode.insertBefore(dragItem, this);
+                const allItems = [...container.querySelectorAll('.stop-item')];
+                const fromIdx = allItems.indexOf(dragItem);
+                const toIdx = allItems.indexOf(this);
+                if (fromIdx < toIdx) this.parentNode.insertBefore(dragItem, this.nextSibling);
+                else this.parentNode.insertBefore(dragItem, this);
+
+                // Update group assignment if dropped into different group
+                const newGroupId = this.dataset.group || null;
+                const dragId = parseInt(dragItem.dataset.id);
+                const dragStop = stopData.find(s => s.id === dragId);
+                if (dragStop && String(dragStop.group_id || '') !== String(newGroupId || '')) {
+                    fetch('/api/trip/' + TRIP_ID + '/stop/' + dragId + '/group', {
+                        method: 'PUT', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ group_id: newGroupId || null })
+                    });
+                    dragStop.group_id = newGroupId ? parseInt(newGroupId) : null;
                 }
                 saveOrder();
             }
@@ -566,6 +685,19 @@ function setupDragDrop() {
     });
 }
 
+async function saveOrder() {
+    const items = document.querySelectorAll('.stop-item');
+    const order = Array.from(items).map(el => parseInt(el.dataset.id));
+    try {
+        await fetch('/api/trip/' + TRIP_ID + '/reorder', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ order })
+        });
+        location.reload();
+    } catch(e) { console.error('Reorder failed:', e); }
+}
+
+// ===== SHARING =====
 async function toggleShare() {
     try {
         const resp = await fetch('/api/trip/' + TRIP_ID + '/share', { method: 'POST' });
@@ -575,24 +707,18 @@ async function toggleShare() {
         const urlInput = document.getElementById('shareUrlInput');
         if (data.share_token) {
             btn.innerHTML = '<i class="bi bi-share-fill"></i> Geteilt';
-            btn.classList.add('btn-success');
-            btn.classList.remove('btn-outline-light');
-            urlInput.value = data.share_url;
-            urlBox.style.display = 'block';
+            btn.classList.add('btn-success'); btn.classList.remove('btn-outline-light');
+            urlInput.value = data.share_url; urlBox.style.display = 'block';
         } else {
             btn.innerHTML = '<i class="bi bi-share"></i> Teilen';
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-light');
+            btn.classList.remove('btn-success'); btn.classList.add('btn-outline-light');
             urlBox.style.display = 'none';
         }
-    } catch (err) {
-        alert('Fehler: ' + err.message);
-    }
+    } catch(e) { alert('Fehler: ' + e.message); }
 }
 
 function copyShareUrl() {
     const input = document.getElementById('shareUrlInput');
-    input.select();
     navigator.clipboard.writeText(input.value).then(() => {
         const btn = input.nextElementSibling;
         btn.innerHTML = '<i class="bi bi-check"></i>';
@@ -600,19 +726,73 @@ function copyShareUrl() {
     });
 }
 
-async function saveOrder() {
-    const items = document.querySelectorAll('.stop-item');
-    const order = Array.from(items).map(el => parseInt(el.dataset.id));
-    try {
-        await fetch('/api/trip/' + TRIP_ID + '/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order })
-        });
-        location.reload();
-    } catch (err) {
-        console.error('Reorder failed:', err);
-    }
+// ===== PLACE SEARCH =====
+function setupPlaceSearch() {
+    const searchInput = document.getElementById('placeSearch');
+    const searchResults = document.getElementById('searchResults');
+    if (!searchInput) return;
+    let searchTimeout = null;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const q = this.value.trim();
+        if (q.length < 2) { searchResults.style.display = 'none'; return; }
+        searchTimeout = setTimeout(() => {
+            fetch('/api/geocode?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(results => {
+                    if (results.length === 0) {
+                        searchResults.innerHTML = '<div class="px-3 py-2 text-muted small">Keine Ergebnisse</div>';
+                    } else {
+                        searchResults.innerHTML = results.map(r =>
+                            '<div class="px-3 py-2 search-result-item" style="cursor:pointer;border-bottom:1px solid #2D3E4F;" ' +
+                            'data-name="' + r.short_name.replace(/"/g, '&quot;') + '" data-lat="' + r.lat + '" data-lng="' + r.lng + '">' +
+                            '<strong class="text-light">' + escHtml(r.short_name) + '</strong><br><small class="text-muted">' + escHtml(r.name.substring(0, 60)) + '</small></div>'
+                        ).join('');
+                    }
+                    searchResults.style.display = 'block';
+                });
+        }, 300);
+    });
+    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Escape') searchResults.style.display = 'none'; });
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) searchResults.style.display = 'none';
+    });
+    searchResults.addEventListener('click', function(e) {
+        const item = e.target.closest('.search-result-item');
+        if (!item) return;
+        document.getElementById('newStopName').value = item.dataset.name;
+        document.getElementById('newStopLat').value = item.dataset.lat;
+        document.getElementById('newStopLng').value = item.dataset.lng;
+        searchResults.style.display = 'none';
+        searchInput.value = '';
+        if (map) {
+            const sel = L.marker([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], {
+                icon: L.divIcon({
+                    html: '<div style="background:#E0A060;color:white;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">?</div>',
+                    className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+                })
+            }).addTo(map).bindPopup('<strong>' + item.dataset.name + '</strong><br><small>Noch nicht hinzugefuegt</small>').openPopup();
+            map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 12);
+            setTimeout(() => map.removeLayer(sel), 10000);
+        }
+    });
+}
+
+function setupHikeSelect() {
+    const sel = document.getElementById('newStopHike');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (opt.value) {
+            document.getElementById('newStopLat').value = opt.dataset.lat;
+            document.getElementById('newStopLng').value = opt.dataset.lng;
+            if (!document.getElementById('newStopName').value) {
+                document.getElementById('newStopName').value = opt.textContent.trim().split('(')[0].trim();
+            }
+            document.getElementById('newStopCategory').value = 'wanderung';
+        }
+    });
 }
 </script>
 {% endblock %}
