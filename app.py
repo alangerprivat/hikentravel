@@ -113,6 +113,7 @@ class Trip(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     stops = db.relationship('TripStop', backref='trip', lazy=True, cascade='all, delete-orphan', order_by='TripStop.position')
+    groups = db.relationship('StopGroup', backref='trip', lazy=True, cascade='all, delete-orphan', order_by='StopGroup.position')
 
     def generate_share_token(self):
         self.share_token = str(uuid.uuid4())[:8]
@@ -142,6 +143,16 @@ class Trip(db.Model):
         return len(self.stops)
 
 
+class StopGroup(db.Model):
+    __tablename__ = 'stop_group'
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    color = db.Column(db.String(7), default='#3DB88C')
+    stops = db.relationship('TripStop', backref='group', lazy=True, order_by='TripStop.position')
+
+
 class TripStop(db.Model):
     __tablename__ = 'trip_stop'
     id = db.Column(db.Integer, primary_key=True)
@@ -159,6 +170,7 @@ class TripStop(db.Model):
     route_type = db.Column(db.String(20), default='car')
     distance_to_next_km = db.Column(db.Float, nullable=True)
     duration_to_next_min = db.Column(db.Integer, nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('stop_group.id'), nullable=True)
 
     hike = db.relationship('Hike', lazy=True)
 
@@ -238,6 +250,34 @@ def migrate_db():
                     conn.commit()
                 except Exception:
                     conn.rollback()
+        # StopGroup table
+        try:
+            conn.execute(db.text("SELECT id FROM stop_group LIMIT 1"))
+        except Exception:
+            conn.rollback()
+            try:
+                conn.execute(db.text("""
+                    CREATE TABLE IF NOT EXISTS stop_group (
+                        id SERIAL PRIMARY KEY,
+                        trip_id INTEGER NOT NULL REFERENCES trip(id) ON DELETE CASCADE,
+                        name VARCHAR(255) NOT NULL,
+                        position INTEGER NOT NULL DEFAULT 0,
+                        color VARCHAR(7) DEFAULT '#3DB88C'
+                    )
+                """))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        # TripStop group_id column
+        try:
+            conn.execute(db.text("SELECT group_id FROM trip_stop LIMIT 1"))
+        except Exception:
+            conn.rollback()
+            try:
+                conn.execute(db.text("ALTER TABLE trip_stop ADD COLUMN group_id INTEGER REFERENCES stop_group(id) ON DELETE SET NULL"))
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
 
 def init_sample_categories():
@@ -514,6 +554,7 @@ def create_trip():
 def trip_detail(trip_id):
     trip = Trip.query.get_or_404(trip_id)
     stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
     hikes = Hike.query.order_by(Hike.name).all()
 
     stop_data = []
@@ -530,11 +571,15 @@ def trip_detail(trip_id):
             'distance_to_next_km': stop.distance_to_next_km,
             'duration_to_next_min': stop.duration_to_next_min,
             'route_type': stop.route_type,
+            'route_type_icon': stop.get_route_type_icon(),
+            'group_id': stop.group_id,
         }
         stop_data.append(sd)
 
-    return render_template('trip_detail.html', trip=trip, stops=stops,
-                           stop_data=json.dumps(stop_data), hikes=hikes)
+    group_data = [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+
+    return render_template('trip_detail.html', trip=trip, stops=stops, groups=groups,
+                           stop_data=json.dumps(stop_data), group_data=json.dumps(group_data), hikes=hikes)
 
 
 @app.route('/trip/<int:trip_id>/edit', methods=['GET', 'POST'])
@@ -599,6 +644,7 @@ def add_trip_stop(trip_id):
     trip = Trip.query.get_or_404(trip_id)
     data = request.get_json()
     max_pos = db.session.query(db.func.max(TripStop.position)).filter_by(trip_id=trip.id).scalar() or -1
+    group_id = int(data.get('group_id')) if data.get('group_id') else None
     stop = TripStop(
         trip_id=trip.id,
         name=data.get('name', 'Neuer Stop'),
@@ -611,6 +657,7 @@ def add_trip_stop(trip_id):
         notes=data.get('notes', ''),
         hike_id=int(data.get('hike_id')) if data.get('hike_id') else None,
         route_type=data.get('route_type', 'car'),
+        group_id=group_id,
     )
     db.session.add(stop)
     db.session.commit()
@@ -961,6 +1008,119 @@ def fetch_mapy_route():
         return jsonify({'error': 'Fehler: ' + str(e)}), 500
 
 
+# ==================== STOP GROUPS ====================
+
+@app.route('/api/trip/<int:trip_id>/group', methods=['POST'])
+@login_required
+def create_group(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    data = request.get_json()
+    max_pos = db.session.query(db.func.max(StopGroup.position)).filter_by(trip_id=trip.id).scalar() or -1
+    group = StopGroup(
+        trip_id=trip.id,
+        name=data.get('name', 'Neue Gruppe'),
+        position=max_pos + 1,
+        color=data.get('color', '#3DB88C'),
+    )
+    db.session.add(group)
+    db.session.commit()
+    return jsonify({'id': group.id, 'name': group.name, 'position': group.position, 'color': group.color})
+
+
+@app.route('/api/trip/<int:trip_id>/group/<int:group_id>', methods=['PUT'])
+@login_required
+def update_group(trip_id, group_id):
+    group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    group.name = data.get('name', group.name)
+    group.color = data.get('color', group.color)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/group/<int:group_id>', methods=['DELETE'])
+@login_required
+def delete_group(trip_id, group_id):
+    group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+    # Ungroup all stops
+    TripStop.query.filter_by(group_id=group_id).update({'group_id': None})
+    db.session.delete(group)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>/group', methods=['PUT'])
+@login_required
+def set_stop_group(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    group_id = data.get('group_id')
+    if group_id:
+        group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+        stop.group_id = group.id
+    else:
+        stop.group_id = None
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/auto-group', methods=['POST'])
+@login_required
+def auto_group_stops(trip_id):
+    """Auto-create groups based on trip days"""
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    if not stops:
+        return jsonify({'success': False, 'error': 'Keine Stops vorhanden'})
+
+    # Delete existing groups
+    StopGroup.query.filter_by(trip_id=trip.id).delete()
+    db.session.flush()
+
+    # Calculate number of days
+    num_days = 1
+    if trip.start_date and trip.end_date:
+        try:
+            start = datetime.strptime(trip.start_date, '%Y-%m-%d')
+            end = datetime.strptime(trip.end_date, '%Y-%m-%d')
+            num_days = max(1, (end - start).days + 1)
+        except ValueError:
+            num_days = 1
+
+    if num_days == 1:
+        # Single group
+        group = StopGroup(trip_id=trip.id, name='Tag 1', position=0, color='#3DB88C')
+        db.session.add(group)
+        db.session.flush()
+        for stop in stops:
+            stop.group_id = group.id
+    else:
+        # Distribute stops evenly across days
+        stops_per_day = max(1, len(stops) // num_days)
+        colors = ['#3DB88C', '#C8956C', '#6BA3D6', '#D66B6B', '#A0A060', '#9B59B6', '#1ABC9C', '#E67E22']
+        for day in range(num_days):
+            start_dt = datetime.strptime(trip.start_date, '%Y-%m-%d') + timedelta(days=day)
+            group = StopGroup(
+                trip_id=trip.id,
+                name=f'Tag {day + 1} ({start_dt.strftime("%d.%m")})',
+                position=day,
+                color=colors[day % len(colors)]
+            )
+            db.session.add(group)
+            db.session.flush()
+            start_idx = day * stops_per_day
+            end_idx = start_idx + stops_per_day if day < num_days - 1 else len(stops)
+            for stop in stops[start_idx:end_idx]:
+                stop.group_id = group.id
+
+    db.session.commit()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
+    return jsonify({
+        'success': True,
+        'groups': [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+    })
+
+
 # ==================== PHASE 4: SHARING & EXPORT ====================
 
 @app.route('/api/trip/<int:trip_id>/share', methods=['POST'])
@@ -982,6 +1142,7 @@ def toggle_share_trip(trip_id):
 def shared_trip(token):
     trip = Trip.query.filter_by(share_token=token).first_or_404()
     stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
     hikes = Hike.query.order_by(Hike.name).all()
     stop_data = []
     for stop in stops:
@@ -997,10 +1158,13 @@ def shared_trip(token):
             'distance_to_next_km': stop.distance_to_next_km,
             'duration_to_next_min': stop.duration_to_next_min,
             'route_type': stop.route_type,
+            'route_type_icon': stop.get_route_type_icon(),
+            'group_id': stop.group_id,
         }
         stop_data.append(sd)
-    return render_template('trip_detail.html', trip=trip, stops=stops,
-                           stop_data=json.dumps(stop_data), hikes=hikes, shared=True)
+    group_data = [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+    return render_template('trip_detail.html', trip=trip, stops=stops, groups=groups,
+                           stop_data=json.dumps(stop_data), group_data=json.dumps(group_data), hikes=hikes, shared=True)
 
 
 @app.route('/trip/<int:trip_id>/gpx')
