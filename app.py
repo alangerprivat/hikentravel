@@ -3,6 +3,1499 @@ import io
 import json
 import uuid
 from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, session, Response, make_response
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+import urllib.request
+import urllib.parse
+
+app = Flask(__name__)
+
+# Configuration
+database_url = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost/hikentravel')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
+elif database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['MAPY_API_KEY'] = os.getenv('MAPY_API_KEY', '')
+
+ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
+ADMIN_PASS = os.getenv('ADMIN_PASS', 'admin')
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+
+# Models
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+
+class Category(db.Model):
+    __tablename__ = 'category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    icon = db.Column(db.String(50), default='\u26f0\ufe0f')
+    color = db.Column(db.String(7), default='#3DB88C')
+    hikes = db.relationship('Hike', backref='category', lazy=True, cascade='all, delete-orphan')
+
+
+class Hike(db.Model):
+    __tablename__ = 'hike'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    region = db.Column(db.String(100), nullable=False)
+    country = db.Column(db.String(100), nullable=False)
+    distance_km = db.Column(db.Float, nullable=False)
+    elevation_gain = db.Column(db.Float, nullable=True)
+    elevation_loss = db.Column(db.Float, nullable=True)
+    duration_minutes = db.Column(db.Integer, nullable=False)
+    difficulty = db.Column(db.Integer, default=3)
+    trail_type = db.Column(db.String(50), default='loop')
+    start_lat = db.Column(db.Float, nullable=False)
+    start_lng = db.Column(db.Float, nullable=False)
+    end_lat = db.Column(db.Float, nullable=True)
+    end_lng = db.Column(db.Float, nullable=True)
+    gpx_data = db.Column(db.Text, nullable=True)
+    route_geometry = db.Column(db.Text, nullable=True)
+    mapy_url = db.Column(db.String(500), nullable=True)
+    tags = db.Column(db.String(500), nullable=True)
+    rating = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def get_tags_list(self):
+        if self.tags:
+            return [tag.strip() for tag in self.tags.split(',')]
+        return []
+
+    def get_difficulty_stars(self):
+        return '\u26f0\ufe0f' * self.difficulty
+
+    def get_duration_display(self):
+        hours = self.duration_minutes // 60
+        mins = self.duration_minutes % 60
+        if hours > 0 and mins > 0:
+            return f"{hours}h {mins}m"
+        elif hours > 0:
+            return f"{hours}h"
+        else:
+            return f"{mins}m"
+
+
+class Trip(db.Model):
+    __tablename__ = 'trip'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    start_date = db.Column(db.String(20), nullable=True)
+    end_date = db.Column(db.String(20), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    share_token = db.Column(db.String(36), nullable=True, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    stops = db.relationship('TripStop', backref='trip', lazy=True, cascade='all, delete-orphan', order_by='TripStop.position')
+    groups = db.relationship('StopGroup', backref='trip', lazy=True, cascade='all, delete-orphan', order_by='StopGroup.position')
+
+    def generate_share_token(self):
+        self.share_token = str(uuid.uuid4())[:8]
+        return self.share_token
+
+    def get_total_distance(self):
+        total = 0
+        for stop in self.stops:
+            if stop.distance_to_next_km:
+                total += stop.distance_to_next_km
+        return round(total, 1)
+
+    def get_total_duration_display(self):
+        total_min = 0
+        for stop in self.stops:
+            if stop.duration_minutes:
+                total_min += stop.duration_minutes
+            if stop.duration_to_next_min:
+                total_min += stop.duration_to_next_min
+        hours = total_min // 60
+        mins = total_min % 60
+        if hours > 0:
+            return f"{hours}h {mins}m"
+        return f"{mins}m"
+
+    def get_stop_count(self):
+        return len(self.stops)
+
+
+class StopGroup(db.Model):
+    __tablename__ = 'stop_group'
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    color = db.Column(db.String(7), default='#3DB88C')
+    stops = db.relationship('TripStop', backref='group', lazy=True, order_by='TripStop.position')
+
+
+class TripStop(db.Model):
+    __tablename__ = 'trip_stop'
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    stop_category = db.Column(db.String(50), default='sehenswuerdigkeit')
+    lat = db.Column(db.Float, nullable=False)
+    lng = db.Column(db.Float, nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    duration_minutes = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    hike_id = db.Column(db.Integer, db.ForeignKey('hike.id'), nullable=True)
+    route_to_next = db.Column(db.Text, nullable=True)
+    route_type = db.Column(db.String(20), default='car')
+    distance_to_next_km = db.Column(db.Float, nullable=True)
+    duration_to_next_min = db.Column(db.Integer, nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('stop_group.id'), nullable=True)
+
+    hike = db.relationship('Hike', lazy=True)
+
+    def get_category_icon(self):
+        icons = {
+            'wanderung': '\U0001f6b6',
+            'stadt': '\U0001f3d9\ufe0f',
+            'sehenswuerdigkeit': '\U0001f4cd',
+            'unterkunft': '\U0001f3e8',
+            'restaurant': '\U0001f37d\ufe0f',
+            'transport': '\U0001f68c',
+        }
+        return icons.get(self.stop_category, '\U0001f4cd')
+
+    def get_category_label(self):
+        labels = {
+            'wanderung': 'Wanderung',
+            'stadt': 'Stadt',
+            'sehenswuerdigkeit': 'Sehenswuerdigkeit',
+            'unterkunft': 'Unterkunft',
+            'restaurant': 'Restaurant',
+            'transport': 'Transport',
+        }
+        return labels.get(self.stop_category, 'Sonstiges')
+
+    def get_route_type_icon(self):
+        icons = {
+            'car': '\U0001f697',
+            'foot_hiking': '\U0001f6b6',
+            'public_transport': '\U0001f68c',
+            'bike': '\U0001f6b2',
+        }
+        return icons.get(self.route_type, '\U0001f697')
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+def init_admin_user():
+    if User.query.filter_by(username=ADMIN_USER).first() is None:
+        admin = User(username=ADMIN_USER)
+        admin.set_password(ADMIN_PASS)
+        db.session.add(admin)
+        db.session.commit()
+
+
+def migrate_db():
+    with db.engine.connect() as conn:
+        # Trip columns
+        trip_columns = [
+            ('share_token', 'VARCHAR(36)'),
+        ]
+        for col_name, col_type in trip_columns:
+            try:
+                conn.execute(db.text(f"SELECT {col_name} FROM trip LIMIT 1"))
+            except Exception:
+                conn.rollback()
+                try:
+                    conn.execute(db.text(f"ALTER TABLE trip ADD COLUMN {col_name} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+        # Hike columns
+        columns_to_add = [
+            ('route_geometry', 'TEXT'),
+            ('mapy_url', 'VARCHAR(500)'),
+        ]
+        for col_name, col_type in columns_to_add:
+            try:
+                conn.execute(db.text(f"SELECT {col_name} FROM hike LIMIT 1"))
+            except Exception:
+                conn.rollback()
+                try:
+                    conn.execute(db.text(f"ALTER TABLE hike ADD COLUMN {col_name} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+        # StopGroup table
+        try:
+            conn.execute(db.text("SELECT id FROM stop_group LIMIT 1"))
+        except Exception:
+            conn.rollback()
+            try:
+                conn.execute(db.text("""
+                    CREATE TABLE IF NOT EXISTS stop_group (
+                        id SERIAL PRIMARY KEY,
+                        trip_id INTEGER NOT NULL REFERENCES trip(id) ON DELETE CASCADE,
+                        name VARCHAR(255) NOT NULL,
+                        position INTEGER NOT NULL DEFAULT 0,
+                        color VARCHAR(7) DEFAULT '#3DB88C'
+                    )
+                """))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        # TripStop group_id column
+        try:
+            conn.execute(db.text("SELECT group_id FROM trip_stop LIMIT 1"))
+        except Exception:
+            conn.rollback()
+            try:
+                conn.execute(db.text("ALTER TABLE trip_stop ADD COLUMN group_id INTEGER REFERENCES stop_group(id) ON DELETE SET NULL"))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+
+def init_sample_categories():
+    if Category.query.count() == 0:
+        categories = [
+            Category(name='Berg', icon='\u26f0\ufe0f', color='#3DB88C'),
+            Category(name='Wald', icon='\U0001f332', color='#2D5A40'),
+            Category(name='See', icon='\U0001f9ca', color='#1A8FA3'),
+            Category(name='Gebirge', icon='\U0001f3d4\ufe0f', color='#8B4513'),
+        ]
+        for cat in categories:
+            db.session.add(cat)
+        db.session.commit()
+
+
+# Routes
+@app.before_request
+def before_request():
+    db.create_all()
+    migrate_db()
+    init_admin_user()
+    init_sample_categories()
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('index'))
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
+@app.route('/')
+def index():
+    search = request.args.get('search', '').strip()
+    category_id = request.args.get('category', type=int)
+    difficulty = request.args.get('difficulty', type=int)
+    sort_by = request.args.get('sort', 'created_at')
+
+    query = Hike.query
+    if search:
+        query = query.filter(Hike.name.ilike(f'%{search}%'))
+    if category_id:
+        query = query.filter_by(category_id=category_id)
+    if difficulty:
+        query = query.filter_by(difficulty=difficulty)
+
+    if sort_by == 'name':
+        query = query.order_by(Hike.name)
+    elif sort_by == 'distance':
+        query = query.order_by(Hike.distance_km.desc())
+    elif sort_by == 'rating':
+        query = query.order_by(Hike.rating.desc())
+    else:
+        query = query.order_by(Hike.created_at.desc())
+
+    hikes = query.all()
+    categories = Category.query.all()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'hikes': [{
+                'id': h.id, 'name': h.name, 'region': h.region,
+                'distance_km': h.distance_km, 'elevation_gain': h.elevation_gain,
+                'difficulty': h.difficulty, 'duration_minutes': h.duration_minutes,
+                'category': h.category.name if h.category else None,
+                'start_lat': h.start_lat, 'start_lng': h.start_lng,
+            } for h in hikes]
+        })
+
+    return render_template('index.html', hikes=hikes, categories=categories,
+                           search=search, category_id=category_id,
+                           difficulty=difficulty, sort_by=sort_by)
+
+
+@app.route('/hike/<int:hike_id>')
+def hike_detail(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    map_coords = {
+        'start': {'lat': hike.start_lat, 'lng': hike.start_lng},
+        'end': {'lat': hike.end_lat, 'lng': hike.end_lng} if hike.end_lat and hike.end_lng else None,
+        'gpx': hike.gpx_data,
+        'route_geometry': json.loads(hike.route_geometry) if hike.route_geometry else None
+    }
+    return render_template('hike_detail.html', hike=hike, map_coords=json.dumps(map_coords))
+
+
+@app.route('/hike/new', methods=['GET', 'POST'])
+@login_required
+def create_hike():
+    if request.method == 'POST':
+        try:
+            hike = Hike(
+                name=request.form.get('name'),
+                description=request.form.get('description'),
+                region=request.form.get('region'),
+                country=request.form.get('country'),
+                distance_km=float(request.form.get('distance_km', 0)),
+                elevation_gain=float(request.form.get('elevation_gain') or 0),
+                elevation_loss=float(request.form.get('elevation_loss') or 0),
+                duration_minutes=int(request.form.get('duration_minutes', 60)),
+                difficulty=int(request.form.get('difficulty', 3)),
+                trail_type=request.form.get('trail_type', 'loop'),
+                start_lat=float(request.form.get('start_lat')),
+                start_lng=float(request.form.get('start_lng')),
+                end_lat=float(request.form.get('end_lat') or 0) or None,
+                end_lng=float(request.form.get('end_lng') or 0) or None,
+                tags=request.form.get('tags'),
+                notes=request.form.get('notes'),
+                route_geometry=request.form.get('route_geometry'),
+                mapy_url=request.form.get('mapy_url'),
+                category_id=request.form.get('category_id', type=int),
+            )
+            # Handle GPX file upload: store raw GPX and parse into route_geometry
+            if 'gpx_file' in request.files:
+                gpx_file = request.files['gpx_file']
+                if gpx_file and gpx_file.filename.endswith('.gpx'):
+                    gpx_content = gpx_file.read().decode('utf-8')
+                    hike.gpx_data = gpx_content
+                    if not hike.route_geometry:
+                        parsed_geojson = parse_gpx_to_geojson(gpx_content)
+                        if parsed_geojson:
+                            hike.route_geometry = parsed_geojson
+                            geojson = json.loads(parsed_geojson)
+                            coords = geojson.get('coordinates', [])
+                            if coords:
+                                if not hike.start_lat or not hike.start_lng:
+                                    hike.start_lng = coords[0][0]
+                                    hike.start_lat = coords[0][1]
+                                if not hike.end_lat or not hike.end_lng:
+                                    hike.end_lng = coords[-1][0]
+                                    hike.end_lat = coords[-1][1]
+
+            gpx_from_form = request.form.get('gpx_data', '')
+            if gpx_from_form and not hike.gpx_data:
+                hike.gpx_data = gpx_from_form
+
+            db.session.add(hike)
+            db.session.commit()
+            return redirect(url_for('hike_detail', hike_id=hike.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('hike_form.html', categories=Category.query.all(), error=str(e))
+
+    mapy_import = session.pop('mapy_import', None)
+    if request.args.get('from_mapy') and mapy_import:
+        prefill = type('Hike', (), mapy_import)()
+        prefill.id = None
+        prefill.description = ''
+        prefill.region = ''
+        prefill.country = ''
+        prefill.difficulty = 3
+        prefill.trail_type = 'loop'
+        prefill.rating = None
+        prefill.tags = ''
+        prefill.notes = ''
+        prefill.category_id = None
+        prefill.gpx_data = mapy_import.get('gpx_data', '')
+        return render_template('hike_form.html', categories=Category.query.all(), hike=prefill)
+
+    return render_template('hike_form.html', categories=Category.query.all())
+
+
+@app.route('/hike/<int:hike_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_hike(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    if request.method == 'POST':
+        try:
+            hike.name = request.form.get('name')
+            hike.description = request.form.get('description')
+            hike.region = request.form.get('region')
+            hike.country = request.form.get('country')
+            hike.distance_km = float(request.form.get('distance_km', 0))
+            hike.elevation_gain = float(request.form.get('elevation_gain') or 0)
+            hike.elevation_loss = float(request.form.get('elevation_loss') or 0)
+            hike.duration_minutes = int(request.form.get('duration_minutes', 60))
+            hike.difficulty = int(request.form.get('difficulty', 3))
+            hike.trail_type = request.form.get('trail_type', 'loop')
+            hike.start_lat = float(request.form.get('start_lat'))
+            hike.start_lng = float(request.form.get('start_lng'))
+            hike.end_lat = float(request.form.get('end_lat') or 0) or None
+            hike.end_lng = float(request.form.get('end_lng') or 0) or None
+            hike.tags = request.form.get('tags')
+            hike.notes = request.form.get('notes')
+            hike.category_id = request.form.get('category_id', type=int)
+            hike.rating = request.form.get('rating', type=int)
+            hike.route_geometry = request.form.get('route_geometry') or hike.route_geometry
+            hike.mapy_url = request.form.get('mapy_url') or hike.mapy_url
+            if 'gpx_file' in request.files:
+                gpx_file = request.files['gpx_file']
+                if gpx_file and gpx_file.filename.endswith('.gpx'):
+                    gpx_content = gpx_file.read().decode('utf-8')
+                    hike.gpx_data = gpx_content
+                    parsed_geojson = parse_gpx_to_geojson(gpx_content)
+                    if parsed_geojson:
+                        hike.route_geometry = parsed_geojson
+            db.session.commit()
+            return redirect(url_for('hike_detail', hike_id=hike.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('hike_form.html', hike=hike, categories=Category.query.all(), error=str(e))
+    return render_template('hike_form.html', hike=hike, categories=Category.query.all())
+
+
+@app.route('/hike/<int:hike_id>/delete', methods=['POST'])
+@login_required
+def delete_hike(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    db.session.delete(hike)
+    db.session.commit()
+    return redirect(url_for('index'))
+
+
+@app.route('/hike/<int:hike_id>/gpx')
+def download_gpx(hike_id):
+    hike = Hike.query.get_or_404(hike_id)
+    if hike.gpx_data:
+        gpx_content = hike.gpx_data
+    else:
+        gpx_content = generate_gpx(hike)
+    filename = secure_filename(hike.name) + '.gpx'
+    return send_file(
+        __import__('io').BytesIO(gpx_content.encode('utf-8')),
+        mimetype='application/gpx+xml',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def generate_gpx(hike):
+    gpx = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HikeNTravel"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns="http://www.topografix.com/GPX/1/1"
+ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+  <name>{hike.name}</name>
+  <desc>{hike.description or ''}</desc>
+  <time>{hike.created_at.isoformat()}Z</time>
+</metadata>
+<wpt lat="{hike.start_lat}" lon="{hike.start_lng}">
+  <name>{hike.name} - Start</name>
+</wpt>"""
+    if hike.end_lat and hike.end_lng:
+        gpx += f"""
+<wpt lat="{hike.end_lat}" lon="{hike.end_lng}">
+  <name>{hike.name} - End</name>
+</wpt>"""
+    gpx += """
+<trk>
+  <name>{}</name>
+  <trkseg>
+    <trkpt lat="{}" lon="{}"><name>Start</name></trkpt>
+  </trkseg>
+</trk>
+</gpx>""".format(hike.name, hike.start_lat, hike.start_lng)
+    return gpx
+
+
+def parse_gpx_to_geojson(gpx_content):
+    """Parse GPX XML content and extract route as GeoJSON LineString"""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(gpx_content)
+        ns = {'gpx': 'http://www.topografix.com/GPX/1/1'}
+        coordinates = []
+        for trkseg in root.findall('.//gpx:trkseg', ns) or root.findall('.//trkseg'):
+            for trkpt in trkseg.findall('gpx:trkpt', ns) or trkseg.findall('trkpt'):
+                lat = float(trkpt.get('lat'))
+                lon = float(trkpt.get('lon'))
+                ele_el = trkpt.find('gpx:ele', ns) or trkpt.find('ele')
+                if ele_el is not None and ele_el.text:
+                    coordinates.append([lon, lat, float(ele_el.text)])
+                else:
+                    coordinates.append([lon, lat])
+        if not coordinates:
+            for trkpt in root.iter():
+                if trkpt.tag.endswith('trkpt') or trkpt.tag == 'trkpt':
+                    lat = float(trkpt.get('lat'))
+                    lon = float(trkpt.get('lon'))
+                    ele_el = None
+                    for child in trkpt:
+                        if child.tag.endswith('ele') or child.tag == 'ele':
+                            ele_el = child
+                            break
+                    if ele_el is not None and ele_el.text:
+                        coordinates.append([lon, lat, float(ele_el.text)])
+                    else:
+                        coordinates.append([lon, lat])
+        if not coordinates:
+            for rtept in root.iter():
+                if rtept.tag.endswith('rtept') or rtept.tag == 'rtept':
+                    coordinates.append([float(rtept.get('lon')), float(rtept.get('lat'))])
+        if len(coordinates) >= 2:
+            return json.dumps({'type': 'LineString', 'coordinates': coordinates})
+    except Exception:
+        pass
+    return None
+
+
+def generate_gpx_from_coords(name, coords_with_alt):
+    """Generate GPX XML from a list of {lat, lon, alt} dicts"""
+    gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    gpx += '<gpx version="1.1" creator="HikeNTravel - Mapy.com Import"\n'
+    gpx += '  xmlns="http://www.topografix.com/GPX/1/1">\n'
+    gpx += '  <metadata><name>' + name + '</name></metadata>\n'
+    gpx += '  <trk><name>' + name + '</name><trkseg>\n'
+    for pt in coords_with_alt:
+        lat = pt.get('lat', 0)
+        lon = pt.get('lon', pt.get('lng', 0))
+        alt = pt.get('alt', pt.get('ele', ''))
+        if alt != '':
+            gpx += '      <trkpt lat="' + str(lat) + '" lon="' + str(lon) + '"><ele>' + str(alt) + '</ele></trkpt>\n'
+        else:
+            gpx += '      <trkpt lat="' + str(lat) + '" lon="' + str(lon) + '"></trkpt>\n'
+    gpx += '    </trkseg></trk>\n</gpx>'
+    return gpx
+
+
+@app.route('/api/import-trail-from-mapy', methods=['POST'])
+def import_trail_from_mapy():
+    """Receive trail data from the Mapy.com bookmarklet and redirect to hike form"""
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = {
+                'coords': json.loads(request.form.get('coords', '[]')),
+                'altitude': json.loads(request.form.get('altitude', '[]')),
+                'name': request.form.get('name', ''),
+                'mapy_url': request.form.get('mapy_url', ''),
+                'distance': request.form.get('distance', ''),
+                'gain': request.form.get('gain', ''),
+                'loss': request.form.get('loss', ''),
+            }
+        coords = data.get('coords', [])
+        altitude = data.get('altitude', [])
+        trail_name = data.get('name', 'Imported Trail')
+        mapy_url = data.get('mapy_url', '')
+        distance = data.get('distance', '')
+        gain = data.get('gain', '')
+        loss = data.get('loss', '')
+        geojson_coords = []
+        if coords and len(coords) >= 2:
+            for co in coords:
+                lat = co.get('lat', co.get('y', 0))
+                lng = co.get('lng', co.get('lon', co.get('x', 0)))
+                geojson_coords.append([lng, lat])
+        route_geometry = ''
+        if len(geojson_coords) >= 2:
+            route_geometry = json.dumps({'type': 'LineString', 'coordinates': geojson_coords})
+        gpx_data = ''
+        gpx_points = altitude if altitude else coords
+        if gpx_points and len(gpx_points) >= 2:
+            gpx_data = generate_gpx_from_coords(trail_name, gpx_points)
+        start_lat = coords[0].get('lat', coords[0].get('y', '')) if coords else ''
+        start_lng = coords[0].get('lng', coords[0].get('lon', coords[0].get('x', ''))) if coords else ''
+        end_lat = coords[-1].get('lat', coords[-1].get('y', '')) if coords else ''
+        end_lng = coords[-1].get('lng', coords[-1].get('lon', coords[-1].get('x', ''))) if coords else ''
+        duration_minutes = 0
+        try:
+            dist_km = float(distance) if distance else 0
+            gain_m = float(gain) if gain else 0
+            time_flat = dist_km / 4.0 * 60
+            time_climb = gain_m / 300.0 * 60
+            duration_minutes = int(max(time_flat, time_climb) + min(time_flat, time_climb) * 0.5)
+        except (ValueError, TypeError):
+            pass
+        session['mapy_import'] = {
+            'name': trail_name, 'mapy_url': mapy_url,
+            'route_geometry': route_geometry, 'gpx_data': gpx_data,
+            'start_lat': start_lat, 'start_lng': start_lng,
+            'end_lat': end_lat, 'end_lng': end_lng,
+            'distance_km': distance, 'elevation_gain': gain,
+            'elevation_loss': loss, 'duration_minutes': duration_minutes,
+        }
+        if not request.is_json:
+            return redirect(url_for('create_hike') + '?from_mapy=1')
+        return jsonify({'success': True, 'message': 'Trail-Daten empfangen!'})
+    except Exception as e:
+        if request.is_json:
+            return jsonify({'error': str(e)}), 400
+        return redirect(url_for('create_hike') + '?error=Import+fehlgeschlagen')
+
+
+@app.route('/api/hike/map-data')
+def get_map_data():
+    hikes = Hike.query.all()
+    return jsonify({
+        'hikes': [{
+            'id': h.id, 'name': h.name,
+            'lat': h.start_lat, 'lng': h.start_lng,
+            'difficulty': h.difficulty,
+            'category': h.category.name if h.category else None,
+        } for h in hikes]
+    })
+
+
+# ==================== TRIP ROUTES ====================
+
+@app.route('/trips')
+def trip_list():
+    trips = Trip.query.order_by(Trip.created_at.desc()).all()
+    return render_template('trip_list.html', trips=trips)
+
+
+@app.route('/trip/new', methods=['GET', 'POST'])
+@login_required
+def create_trip():
+    if request.method == 'POST':
+        try:
+            trip = Trip(
+                name=request.form.get('name'),
+                description=request.form.get('description'),
+                start_date=request.form.get('start_date') or None,
+                end_date=request.form.get('end_date') or None,
+                notes=request.form.get('notes'),
+            )
+            db.session.add(trip)
+            db.session.commit()
+            return redirect(url_for('trip_detail', trip_id=trip.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('trip_form.html', error=str(e))
+    return render_template('trip_form.html')
+
+
+@app.route('/trip/<int:trip_id>')
+def trip_detail(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
+    hikes = Hike.query.order_by(Hike.name).all()
+
+    stop_data = []
+    for stop in stops:
+        sd = {
+            'id': stop.id,
+            'name': stop.name,
+            'lat': stop.lat,
+            'lng': stop.lng,
+            'category': stop.stop_category,
+            'icon': stop.get_category_icon(),
+            'position': stop.position,
+            'route_to_next': json.loads(stop.route_to_next) if stop.route_to_next else None,
+            'distance_to_next_km': stop.distance_to_next_km,
+            'duration_to_next_min': stop.duration_to_next_min,
+            'route_type': stop.route_type,
+            'route_type_icon': stop.get_route_type_icon(),
+            'group_id': stop.group_id,
+        }
+        stop_data.append(sd)
+
+    group_data = [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+
+    return render_template('trip_detail.html', trip=trip, stops=stops, groups=groups,
+                           stop_data=json.dumps(stop_data), group_data=json.dumps(group_data), hikes=hikes)
+
+
+@app.route('/trip/<int:trip_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_trip(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    if request.method == 'POST':
+        try:
+            trip.name = request.form.get('name')
+            trip.description = request.form.get('description')
+            trip.start_date = request.form.get('start_date') or None
+            trip.end_date = request.form.get('end_date') or None
+            trip.notes = request.form.get('notes')
+            db.session.commit()
+            return redirect(url_for('trip_detail', trip_id=trip.id))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('trip_form.html', trip=trip, error=str(e))
+    return render_template('trip_form.html', trip=trip)
+
+
+@app.route('/trip/<int:trip_id>/delete', methods=['POST'])
+@login_required
+def delete_trip(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    db.session.delete(trip)
+    db.session.commit()
+    return redirect(url_for('trip_list'))
+
+
+@app.route('/api/geocode')
+def geocode_search():
+    """Search for places using Nominatim (OpenStreetMap geocoding)"""
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
+        return jsonify([])
+    try:
+        encoded_q = urllib.parse.quote(query)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded_q}&format=json&limit=5&addressdetails=1&accept-language=de"
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0 (hiking trip planner)')
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode('utf-8'))
+        results = []
+        for item in data:
+            results.append({
+                'name': item.get('display_name', ''),
+                'short_name': item.get('name', item.get('display_name', '')[:40]),
+                'lat': float(item.get('lat', 0)),
+                'lng': float(item.get('lon', 0)),
+                'type': item.get('type', ''),
+                'category': item.get('class', '')
+            })
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([])
+
+
+@app.route('/api/trip/<int:trip_id>/stop', methods=['POST'])
+@login_required
+def add_trip_stop(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    data = request.get_json()
+    max_pos = db.session.query(db.func.max(TripStop.position)).filter_by(trip_id=trip.id).scalar() or -1
+    group_id = int(data.get('group_id')) if data.get('group_id') else None
+    stop = TripStop(
+        trip_id=trip.id,
+        name=data.get('name', 'Neuer Stop'),
+        description=data.get('description', ''),
+        stop_category=data.get('stop_category', 'sehenswuerdigkeit'),
+        lat=float(data.get('lat', 0)),
+        lng=float(data.get('lng', 0)),
+        position=max_pos + 1,
+        duration_minutes=int(data.get('duration_minutes', 0)) or None,
+        notes=data.get('notes', ''),
+        hike_id=int(data.get('hike_id')) if data.get('hike_id') else None,
+        route_type=data.get('route_type', 'car'),
+        group_id=group_id,
+    )
+    db.session.add(stop)
+    db.session.commit()
+
+    # Auto-route from previous stop
+    prev_stop = TripStop.query.filter_by(trip_id=trip.id).filter(TripStop.position < stop.position).order_by(TripStop.position.desc()).first()
+    if prev_stop:
+        route_result = calculate_route_between(prev_stop, stop)
+        if route_result:
+            prev_stop.route_to_next = json.dumps(route_result.get('geometry'))
+            prev_stop.distance_to_next_km = route_result.get('distance_km')
+            prev_stop.duration_to_next_min = route_result.get('duration_min')
+            prev_stop.route_type = data.get('route_type', 'car')
+            db.session.commit()
+
+    return jsonify({
+        'id': stop.id,
+        'name': stop.name,
+        'lat': stop.lat,
+        'lng': stop.lng,
+        'position': stop.position,
+        'category': stop.stop_category,
+        'icon': stop.get_category_icon(),
+    })
+
+
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>', methods=['PUT'])
+@login_required
+def update_trip_stop(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    stop.name = data.get('name', stop.name)
+    stop.description = data.get('description', stop.description)
+    stop.stop_category = data.get('stop_category', stop.stop_category)
+    stop.lat = float(data.get('lat', stop.lat))
+    stop.lng = float(data.get('lng', stop.lng))
+    stop.duration_minutes = int(data.get('duration_minutes', 0)) or stop.duration_minutes
+    stop.notes = data.get('notes', stop.notes)
+    stop.hike_id = int(data.get('hike_id')) if data.get('hike_id') else stop.hike_id
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>', methods=['DELETE'])
+@login_required
+def delete_trip_stop(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    db.session.delete(stop)
+    db.session.commit()
+    # Recalculate positions
+    remaining = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    for i, s in enumerate(remaining):
+        s.position = i
+    db.session.commit()
+    # Recalculate route for the stop now before the deleted one
+    recalculate_trip_routes(trip_id)
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/reorder', methods=['POST'])
+@login_required
+def reorder_trip_stops(trip_id):
+    data = request.get_json()
+    order = data.get('order', [])
+    for i, stop_id in enumerate(order):
+        stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first()
+        if stop:
+            stop.position = i
+    db.session.commit()
+    recalculate_trip_routes(trip_id)
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/recalculate-routes', methods=['POST'])
+@login_required
+def api_recalculate_routes(trip_id):
+    recalculate_trip_routes(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    result = []
+    for stop in stops:
+        result.append({
+            'id': stop.id,
+            'route_to_next': json.loads(stop.route_to_next) if stop.route_to_next else None,
+            'distance_to_next_km': stop.distance_to_next_km,
+            'duration_to_next_min': stop.duration_to_next_min,
+            'route_type': stop.route_type,
+        })
+    return jsonify({'stops': result})
+
+
+def recalculate_trip_routes(trip_id):
+    stops = TripStop.query.filter_by(trip_id=trip_id).order_by(TripStop.position).all()
+    for i in range(len(stops)):
+        if i < len(stops) - 1:
+            route_result = calculate_route_between(stops[i], stops[i + 1])
+            if route_result:
+                stops[i].route_to_next = json.dumps(route_result.get('geometry'))
+                stops[i].distance_to_next_km = route_result.get('distance_km')
+                stops[i].duration_to_next_min = route_result.get('duration_min')
+            else:
+                stops[i].route_to_next = None
+                stops[i].distance_to_next_km = None
+                stops[i].duration_to_next_min = None
+        else:
+            stops[i].route_to_next = None
+            stops[i].distance_to_next_km = None
+            stops[i].duration_to_next_min = None
+    db.session.commit()
+
+
+def calculate_route_between(stop_a, stop_b):
+    try:
+        api_key = app.config.get('MAPY_API_KEY', '')
+        route_type = stop_a.route_type or 'car'
+        if route_type == 'public_transport':
+            route_type = 'car'
+        route_api_url = (
+            "https://api.mapy.cz/v1/routing/route"
+            "?apikey=" + api_key +
+            "&lang=de"
+            "&start=" + str(stop_a.lng) + "," + str(stop_a.lat) +
+            "&end=" + str(stop_b.lng) + "," + str(stop_b.lat) +
+            "&routeType=" + route_type
+        )
+        req = urllib.request.Request(route_api_url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0')
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        route_data = json.loads(resp.read().decode('utf-8'))
+
+        distance_m = route_data.get('length', 0)
+        duration_s = route_data.get('duration', 0)
+        geo_feature = route_data.get('geometry', {})
+        if isinstance(geo_feature, dict) and 'geometry' in geo_feature:
+            geometry = geo_feature['geometry']
+        else:
+            geometry = geo_feature
+
+        return {
+            'geometry': geometry,
+            'distance_km': round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1),
+            'duration_min': int(duration_s / 60) if duration_s > 100 else int(duration_s),
+        }
+    except Exception:
+        return None
+
+
+# ==================== MAPY ROUTE API ====================
+
+def decode_mapy_rc(rc_string):
+    ALPHABET = '0ABCD2EFGH4IJKLMN6OPQRST8UVWXYZ-1abcd3efgh5ijklmn7opqrst9uvwxyz.'
+    FIVE_CHARS = 2 << 4
+    THREE_CHARS = 1 << 4
+
+    def parse_number(arr, count):
+        result = 0
+        i = count
+        while i > 0:
+            if not arr:
+                raise ValueError("No data")
+            ch = arr.pop()
+            index = ALPHABET.find(ch)
+            if index == -1:
+                continue
+            result = (result << 6) + index
+            i -= 1
+        return result
+
+    results = []
+    coords = [0, 0]
+    coord_index = 0
+    arr = list(reversed(rc_string.strip()))
+
+    while arr:
+        num = parse_number(arr, 1)
+        if (num & FIVE_CHARS) == FIVE_CHARS:
+            num -= FIVE_CHARS
+            num = ((num & 15) << 24) + parse_number(arr, 4)
+            coords[coord_index] = num
+        elif (num & THREE_CHARS) == THREE_CHARS:
+            num = ((num & 15) << 12) + parse_number(arr, 2)
+            num -= 1 << 15
+            coords[coord_index] += num
+        else:
+            num = ((num & 31) << 6) + parse_number(arr, 1)
+            num -= 1 << 10
+            coords[coord_index] += num
+        if coord_index:
+            lng = coords[0] * 360 / (1 << 28) - 180
+            lat = coords[1] * 180 / (1 << 28) - 90
+            results.append({'lat': round(lat, 6), 'lng': round(lng, 6)})
+        coord_index = (coord_index + 1) % 2
+    return results
+
+
+@app.route('/api/fetch-mapy-route', methods=['POST'])
+def fetch_mapy_route():
+    data = request.get_json()
+    mapy_url = data.get('url', '')
+    try:
+        resolved_url = mapy_url
+        if '/s/' in mapy_url:
+            try:
+                req = urllib.request.Request(mapy_url, method='HEAD')
+                req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                req.add_header('Accept', 'text/html')
+                response = urllib.request.urlopen(req, timeout=10)
+                resolved_url = response.url
+            except Exception:
+                try:
+                    req = urllib.request.Request(mapy_url)
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                    req.add_header('Accept', 'text/html')
+                    response = urllib.request.urlopen(req, timeout=10)
+                    resolved_url = response.url
+                    if resolved_url == mapy_url or '/s/' in resolved_url:
+                        import re
+                        html = response.read().decode('utf-8', errors='ignore')
+                        meta_match = re.search(r'url=([^"\'>\s]+)', html, re.IGNORECASE)
+                        if meta_match:
+                            resolved_url = meta_match.group(1)
+                except Exception:
+                    resolved_url = mapy_url
+
+        parsed = urllib.parse.urlparse(resolved_url)
+        params = urllib.parse.parse_qs(parsed.query)
+        start_lat = None
+        start_lng = None
+        end_lat = None
+        end_lng = None
+
+        rc_values = params.get('rc', [])
+        if rc_values and rc_values[0]:
+            try:
+                waypoints = decode_mapy_rc(rc_values[0])
+                if len(waypoints) >= 1:
+                    start_lat = waypoints[0]['lat']
+                    start_lng = waypoints[0]['lng']
+                if len(waypoints) >= 2:
+                    end_lat = waypoints[-1]['lat']
+                    end_lng = waypoints[-1]['lng']
+            except Exception:
+                pass
+
+        if not start_lat and 'x' in params and 'y' in params:
+            center_lng = float(params['x'][0])
+            center_lat = float(params['y'][0])
+            start_lat = center_lat
+            start_lng = center_lng
+
+        dim_value = params.get('dim', [None])[0]
+        if dim_value and start_lat:
+            return jsonify({
+                'start_lat': round(start_lat, 6),
+                'start_lng': round(start_lng, 6),
+                'resolved_url': resolved_url,
+                'is_trail_link': True,
+                'dim_id': dim_value,
+                'info': 'Trail-Link erkannt. Nutze das Bookmarklet um die Route zu importieren.'
+            })
+        elif not start_lat and dim_value:
+            return jsonify({
+                'resolved_url': resolved_url,
+                'is_trail_link': True,
+                'dim_id': dim_value,
+                'info': 'Trail-Link erkannt. Nutze das Bookmarklet um die Route zu importieren.'
+            })
+
+        if not start_lat or not start_lng:
+            return jsonify({'error': 'Konnte keine Koordinaten aus dem Link extrahieren. Bitte verwende eine volle Mapy.com Route-URL.',
+                            'resolved_url': resolved_url}), 400
+
+        if not end_lat or not end_lng:
+            return jsonify({
+                'start_lat': round(start_lat, 6),
+                'start_lng': round(start_lng, 6),
+                'resolved_url': resolved_url,
+                'error': 'Nur Startpunkt gefunden. Bitte gib den Endpunkt manuell ein.'
+            }), 400
+
+        api_key = app.config.get('MAPY_API_KEY', '')
+        route_api_url = (
+            "https://api.mapy.cz/v1/routing/route"
+            "?apikey=" + api_key +
+            "&lang=de"
+            "&start=" + str(start_lng) + "," + str(start_lat) +
+            "&end=" + str(end_lng) + "," + str(end_lat) +
+            "&routeType=foot_hiking"
+        )
+        req = urllib.request.Request(route_api_url)
+        req.add_header('User-Agent', 'HikeNTravel/1.0')
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        route_data = json.loads(resp.read().decode('utf-8'))
+
+        distance_m = route_data.get('length', 0)
+        duration_s = route_data.get('duration', 0)
+        geo_feature = route_data.get('geometry', {})
+        if isinstance(geo_feature, dict) and 'geometry' in geo_feature:
+            geometry = geo_feature['geometry']
+        else:
+            geometry = geo_feature
+
+        elevation_gain = 0
+        elevation_loss = 0
+        try:
+            route_coords = []
+            if isinstance(geometry, dict) and geometry.get('type') == 'LineString':
+                route_coords = geometry.get('coordinates', [])
+            if route_coords:
+                max_points = 256
+                if len(route_coords) > max_points:
+                    step = len(route_coords) / max_points
+                    sampled = [route_coords[int(i * step)] for i in range(max_points)]
+                else:
+                    sampled = route_coords
+                positions = ';'.join(
+                    '{},{}'.format(round(c[0], 6), round(c[1], 6)) for c in sampled
+                )
+                elev_url = (
+                    'https://api.mapy.cz/v1/elevation'
+                    '?apikey=' + api_key +
+                    '&positions=' + positions
+                )
+                elev_req = urllib.request.Request(elev_url)
+                elev_req.add_header('User-Agent', 'HikeNTravel/1.0')
+                elev_req.add_header('Accept', 'application/json')
+                elev_resp = urllib.request.urlopen(elev_req, timeout=15)
+                elev_data = json.loads(elev_resp.read().decode('utf-8'))
+                elevations = [item['elevation'] for item in elev_data.get('items', [])]
+                if len(elevations) > 1:
+                    for i in range(1, len(elevations)):
+                        diff = elevations[i] - elevations[i - 1]
+                        if diff > 0:
+                            elevation_gain += diff
+                        else:
+                            elevation_loss += abs(diff)
+                    elevation_gain = int(round(elevation_gain))
+                    elevation_loss = int(round(elevation_loss))
+        except Exception:
+            pass
+
+        distance_km = round(distance_m / 1000, 1) if distance_m > 100 else round(distance_m, 1)
+        duration_minutes = int(duration_s / 60) if duration_s > 100 else int(duration_s)
+
+        return jsonify({
+            'distance_km': distance_km,
+            'duration_minutes': duration_minutes,
+            'elevation_gain': elevation_gain,
+            'elevation_loss': elevation_loss,
+            'start_lat': round(start_lat, 6),
+            'start_lng': round(start_lng, 6),
+            'end_lat': round(end_lat, 6),
+            'end_lng': round(end_lng, 6),
+            'route_geometry': json.dumps(geometry),
+            'resolved_url': resolved_url
+        })
+    except Exception as e:
+        return jsonify({'error': 'Fehler: ' + str(e)}), 500
+
+
+# ==================== STOP GROUPS ====================
+
+@app.route('/api/trip/<int:trip_id>/group', methods=['POST'])
+@login_required
+def create_group(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    data = request.get_json()
+    max_pos = db.session.query(db.func.max(StopGroup.position)).filter_by(trip_id=trip.id).scalar() or -1
+    group = StopGroup(
+        trip_id=trip.id,
+        name=data.get('name', 'Neue Gruppe'),
+        position=max_pos + 1,
+        color=data.get('color', '#3DB88C'),
+    )
+    db.session.add(group)
+    db.session.commit()
+    return jsonify({'id': group.id, 'name': group.name, 'position': group.position, 'color': group.color})
+
+
+@app.route('/api/trip/<int:trip_id>/group/<int:group_id>', methods=['PUT'])
+@login_required
+def update_group(trip_id, group_id):
+    group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    group.name = data.get('name', group.name)
+    group.color = data.get('color', group.color)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/group/<int:group_id>', methods=['DELETE'])
+@login_required
+def delete_group(trip_id, group_id):
+    group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+    # Ungroup all stops
+    TripStop.query.filter_by(group_id=group_id).update({'group_id': None})
+    db.session.delete(group)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/stop/<int:stop_id>/group', methods=['PUT'])
+@login_required
+def set_stop_group(trip_id, stop_id):
+    stop = TripStop.query.filter_by(id=stop_id, trip_id=trip_id).first_or_404()
+    data = request.get_json()
+    group_id = data.get('group_id')
+    if group_id:
+        group = StopGroup.query.filter_by(id=group_id, trip_id=trip_id).first_or_404()
+        stop.group_id = group.id
+    else:
+        stop.group_id = None
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/trip/<int:trip_id>/auto-group', methods=['POST'])
+@login_required
+def auto_group_stops(trip_id):
+    """Auto-create groups based on trip days"""
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    if not stops:
+        return jsonify({'success': False, 'error': 'Keine Stops vorhanden'})
+
+    # Delete existing groups
+    StopGroup.query.filter_by(trip_id=trip.id).delete()
+    db.session.flush()
+
+    # Calculate number of days
+    num_days = 1
+    if trip.start_date and trip.end_date:
+        try:
+            start = datetime.strptime(trip.start_date, '%Y-%m-%d')
+            end = datetime.strptime(trip.end_date, '%Y-%m-%d')
+            num_days = max(1, (end - start).days + 1)
+        except ValueError:
+            num_days = 1
+
+    if num_days == 1:
+        # Single group
+        group = StopGroup(trip_id=trip.id, name='Tag 1', position=0, color='#3DB88C')
+        db.session.add(group)
+        db.session.flush()
+        for stop in stops:
+            stop.group_id = group.id
+    else:
+        # Distribute stops evenly across days
+        stops_per_day = max(1, len(stops) // num_days)
+        colors = ['#3DB88C', '#C8956C', '#6BA3D6', '#D66B6B', '#A0A060', '#9B59B6', '#1ABC9C', '#E67E22']
+        for day in range(num_days):
+            start_dt = datetime.strptime(trip.start_date, '%Y-%m-%d') + timedelta(days=day)
+            group = StopGroup(
+                trip_id=trip.id,
+                name=f'Tag {day + 1} ({start_dt.strftime("%d.%m")})',
+                position=day,
+                color=colors[day % len(colors)]
+            )
+            db.session.add(group)
+            db.session.flush()
+            start_idx = day * stops_per_day
+            end_idx = start_idx + stops_per_day if day < num_days - 1 else len(stops)
+            for stop in stops[start_idx:end_idx]:
+                stop.group_id = group.id
+
+    db.session.commit()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
+    return jsonify({
+        'success': True,
+        'groups': [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+    })
+
+
+# ==================== PHASE 4: SHARING & EXPORT ====================
+
+@app.route('/api/trip/<int:trip_id>/share', methods=['POST'])
+@login_required
+def toggle_share_trip(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    if trip.share_token:
+        trip.share_token = None
+    else:
+        trip.generate_share_token()
+    db.session.commit()
+    return jsonify({
+        'share_token': trip.share_token,
+        'share_url': url_for('shared_trip', token=trip.share_token, _external=True) if trip.share_token else None
+    })
+
+
+@app.route('/shared/<token>')
+def shared_trip(token):
+    trip = Trip.query.filter_by(share_token=token).first_or_404()
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    groups = StopGroup.query.filter_by(trip_id=trip.id).order_by(StopGroup.position).all()
+    hikes = Hike.query.order_by(Hike.name).all()
+    stop_data = []
+    for stop in stops:
+        sd = {
+            'id': stop.id,
+            'name': stop.name,
+            'lat': stop.lat,
+            'lng': stop.lng,
+            'category': stop.stop_category,
+            'icon': stop.get_category_icon(),
+            'position': stop.position,
+            'route_to_next': json.loads(stop.route_to_next) if stop.route_to_next else None,
+            'distance_to_next_km': stop.distance_to_next_km,
+            'duration_to_next_min': stop.duration_to_next_min,
+            'route_type': stop.route_type,
+            'route_type_icon': stop.get_route_type_icon(),
+            'group_id': stop.group_id,
+        }
+        stop_data.append(sd)
+    group_data = [{'id': g.id, 'name': g.name, 'position': g.position, 'color': g.color} for g in groups]
+    return render_template('trip_detail.html', trip=trip, stops=stops, groups=groups,
+                           stop_data=json.dumps(stop_data), group_data=json.dumps(group_data), hikes=hikes, shared=True)
+
+
+@app.route('/trip/<int:trip_id>/gpx')
+def trip_gpx_export(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    gpx += '<gpx version="1.1" creator="HikeNTravel"\n'
+    gpx += ' xmlns="http://www.topografix.com/GPX/1/1">\n'
+    gpx += '<metadata>\n'
+    gpx += f'  <name>{trip.name}</name>\n'
+    gpx += f'  <desc>{trip.description or ""}</desc>\n'
+    gpx += f'  <time>{trip.created_at.isoformat()}Z</time>\n'
+    gpx += '</metadata>\n'
+    for stop in stops:
+        gpx += f'<wpt lat="{stop.lat}" lon="{stop.lng}">\n'
+        gpx += f'  <name>{stop.name}</name>\n'
+        if stop.description:
+            gpx += f'  <desc>{stop.description}</desc>\n'
+        gpx += f'  <type>{stop.get_category_label()}</type>\n'
+        gpx += '</wpt>\n'
+    if len(stops) > 1:
+        gpx += f'<trk>\n  <name>{trip.name}</name>\n  <trkseg>\n'
+        for stop in stops:
+            gpx += f'    <trkpt lat="{stop.lat}" lon="{stop.lng}"><name>{stop.name}</name></trkpt>\n'
+            if stop.route_to_next:
+                try:
+                    route = json.loads(stop.route_to_next)
+                    if isinstance(route, dict) and route.get('coordinates'):
+                        for coord in route['coordinates']:
+                            gpx += f'    <trkpt lat="{coord[1]}" lon="{coord[0]}"></trkpt>\n'
+                except Exception:
+                    pass
+        gpx += '  </trkseg>\n</trk>\n'
+    gpx += '</gpx>\n'
+    filename = secure_filename(trip.name) + '_route.gpx'
+    return send_file(
+        io.BytesIO(gpx.encode('utf-8')),
+        mimetype='application/gpx+xml',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+@app.route('/trip/<int:trip_id>/ical')
+def trip_ical_export(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    cal = 'BEGIN:VCALENDAR\r\n'
+    cal += 'VERSION:2.0\r\n'
+    cal += 'PRODID:-//HikeNTravel//Trip Export//DE\r\n'
+    cal += 'CALSCALE:GREGORIAN\r\n'
+    cal += 'METHOD:PUBLISH\r\n'
+    if trip.start_date:
+        try:
+            start = datetime.strptime(trip.start_date, '%Y-%m-%d')
+        except ValueError:
+            start = datetime.now()
+    else:
+        start = datetime.now()
+    if trip.end_date:
+        try:
+            end = datetime.strptime(trip.end_date, '%Y-%m-%d') + timedelta(days=1)
+        except ValueError:
+            end = start + timedelta(days=1)
+    else:
+        end = start + timedelta(days=1)
+    cal += 'BEGIN:VEVENT\r\n'
+    cal += f'DTSTART;VALUE=DATE:{start.strftime("%Y%m%d")}\r\n'
+    cal += f'DTEND;VALUE=DATE:{end.strftime("%Y%m%d")}\r\n'
+    cal += f'SUMMARY:{trip.name}\r\n'
+    desc_parts = []
+    if trip.description:
+        desc_parts.append(trip.description)
+    desc_parts.append(f'Stops: {len(stops)}')
+    desc_parts.append(f'Gesamtdistanz: {trip.get_total_distance()} km')
+    for i, stop in enumerate(stops):
+        desc_parts.append(f'{i+1}. {stop.get_category_icon()} {stop.name}')
+    cal += f'DESCRIPTION:{chr(92)}n'.join(desc_parts) + '\r\n'
+    if stops:
+        cal += f'GEO:{stops[0].lat};{stops[0].lng}\r\n'
+        cal += f'LOCATION:{stops[0].name}\r\n'
+    cal += f'UID:hikentravel-trip-{trip.id}@hikentravel\r\n'
+    cal += f'DTSTAMP:{datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")}\r\n'
+    cal += 'END:VEVENT\r\n'
+    cal += 'END:VCALENDAR\r\n'
+    filename = secure_filename(trip.name) + '.ics'
+    response = make_response(cal)
+    response.headers['Content-Type'] = 'text/calendar; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@app.route('/trip/<int:trip_id>/pdf')
+def trip_pdf_export(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    stops = TripStop.query.filter_by(trip_id=trip.id).order_by(TripStop.position).all()
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{trip.name}</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
+h1 {{ color: #1A5C4C; border-bottom: 2px solid #C8956C; padding-bottom: 8px; }}
+.meta {{ color: #666; margin-bottom: 20px; }}
+.stop {{ border-left: 3px solid #3DB88C; padding: 8px 16px; margin: 12px 0; background: #f8f9fa; }}
+.stop-name {{ font-weight: bold; color: #1A5C4C; }}
+.route-info {{ color: #C8956C; font-size: 0.9em; padding: 4px 0 4px 20px; }}
+.notes {{ background: #fff8f0; border: 1px solid #C8956C; padding: 12px; margin-top: 20px; border-radius: 4px; }}
+.footer {{ margin-top: 30px; font-size: 0.8em; color: #999; border-top: 1px solid #ddd; padding-top: 8px; }}
+</style></head><body>
+<h1>{trip.name}</h1>
+<div class="meta">"""
+    if trip.description:
+        html += f"<p>{trip.description}</p>"
+    if trip.start_date:
+        html += f"<strong>Zeitraum:</strong> {trip.start_date}"
+        if trip.end_date:
+            html += f" bis {trip.end_date}"
+        html += "<br>"
+    html += f"<strong>Stops:</strong> {len(stops)} | <strong>Gesamtdistanz:</strong> {trip.get_total_distance()} km"
+    html += "</div>"
+    for i, stop in enumerate(stops):
+        html += f'<div class="stop"><span class="stop-name">{i+1}. {stop.get_category_icon()} {stop.name}</span>'
+        html += f' <small>({stop.get_category_label()})</small>'
+        if stop.description:
+            html += f'<br><small>{stop.description}</small>'
+        if stop.duration_minutes:
+            html += f'<br><small>Aufenthalt: {stop.duration_minutes} min</small>'
+        html += f'<br><small>Koordinaten: {stop.lat}, {stop.lng}</small>'
+        html += '</div>'
+        if stop.distance_to_next_km:
+            html += f'<div class="route-info">{stop.get_route_type_icon()} {stop.distance_to_next_km} km'
+            if stop.duration_to_next_min:
+                html += f' | {stop.duration_to_next_min} min'
+            html += '</div>'
+    if trip.notes:
+        html += f'<div class="notes"><strong>Notizen:</strong><br>{trip.notes}</div>'
+    html += f'<div class="footer">Erstellt mit HikeNTravel | Export: {datetime.now().strftime("%d.%m.%Y %H:%M")}</div>'
+    html += '</body></html>'
+    filename = secure_filename(trip.name) + '_reiseplan.html'
+    return send_file(
+        io.BytesIO(html.encode('utf-8')),
+        mimetype='text/html',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+import os
+import io
+import json
+import uuid
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, Response, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
